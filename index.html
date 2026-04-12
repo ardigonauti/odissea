@@ -1,0 +1,1670 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Il Nostro Diario di Bordo — Odissea</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --ft:'Palatino Linotype',Palatino,'Book Antiqua',Georgia,serif;
+  --fm:'Courier New',Courier,monospace;
+  --fb:Georgia,'Times New Roman',serif;
+  --ink:#18100a; --p1:#f4e8cc; --p2:#ecdbb0; --p3:#e0c990;
+  --g1:#b8820a; --g2:#d4a820; --g3:#f0c840;
+  --bg:#06090f; --bg2:#0c1428;
+  --d1:#7a6030; --d2:#b89040;
+  --green:#2a6a1a; --red:#8a1a0a; --blue:#0a2a6a;
+}
+html,body{min-height:100%;background:var(--bg);color:var(--p1);font-family:var(--fb);overflow-x:hidden}
+
+/* ══ UTILITY ══ */
+.scr{display:none;min-height:100vh}
+.scr.on{display:block}
+.center{text-align:center}
+.gold{color:var(--g2)}
+
+/* ══ PROGRESS BAR GLOBALE ══ */
+.progress-wrap{position:fixed;top:0;left:0;right:0;height:3px;z-index:9000;background:rgba(180,130,40,.15)}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--g1),var(--g3));transition:width .5s ease}
+
+
+/* ══ GUIDA ══ */
+function switchGuide(n){
+  for(let i=0;i<4;i++){
+    document.getElementById('gt-'+i)?.classList.toggle('sel',i===n);
+    document.getElementById('gp-'+i)?.classList.toggle('on',i===n);
+  }
+}
+
+
+/* ══ SALVATAGGIO SESSIONE ══ */
+function salvaSessione(){
+  const data={
+    v:3,
+    ts:new Date().toISOString(),
+    ruolo,icona,nomeRuolo,nomeUtente,
+    settCorr,libro,drawData,
+    meta:{classe:'', anno:new Date().getFullYear()}
+  };
+  const json=JSON.stringify(data,null,2);
+  const blob=new Blob([json],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  const d=new Date();
+  const ds=d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
+  a.download='odissea-salvataggio-'+ds+'.json';
+  document.body.appendChild(a);a.click();
+  document.body.removeChild(a);URL.revokeObjectURL(url);
+  msg('Salvataggio scaricato!');
+}
+
+function caricaSessione(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const d=JSON.parse(e.target.result);
+      if(!d.v){msg('File non valido');return;}
+      libro=d.libro||[];
+      drawData=d.drawData||d.dd||{};
+      if(d.ruolo){ruolo=d.ruolo;icona=d.icona||'';nomeRuolo=d.nomeRuolo||'';nomeUtente=d.nomeUtente||'';}
+      if(d.settCorr!==undefined) settCorr=d.settCorr;
+      salva();
+      // aggiorna UI
+      if(ruolo){
+        document.querySelectorAll('.role-card').forEach(c=>c.classList.remove('sel'));
+        document.getElementById('rc-'+ruolo)?.classList.add('sel');
+      }
+      if(nomeUtente){const inp=document.getElementById('inp-nome');if(inp)inp.value=nomeUtente;}
+      document.querySelectorAll('.wc').forEach((c,i)=>c.classList.toggle('sel',i===settCorr));
+      // Se siamo nel lab, aggiorna
+      if(document.getElementById('s-lab').classList.contains('on')){
+        document.getElementById('tb-role').textContent=icona+' '+nomeRuolo+' — '+nomeUtente;
+        document.getElementById('tb-week').textContent='\u2693 '+WEEKS[settCorr].title;
+        costruisciTabs();renderLab(settCorr);
+      }
+      const ts=d.ts?new Date(d.ts).toLocaleDateString('it-IT'):'';
+      msg('Salvataggio caricato'+( ts?' ('+ts+')':'')+'!');
+    }catch(err){msg('Errore nel file: '+err.message);}
+  };
+  reader.readAsText(file);
+  input.value=''; // reset per permettere di ricaricare lo stesso file
+}
+
+
+/* ══ DOWNLOAD FILE ══ */
+function scaricaFile(e){
+  e.preventDefault();
+  // Scarica il file corrente (index.html / la pagina stessa)
+  const url=window.location.href.split('?')[0].split('#')[0];
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='diario-di-bordo-odissea.html';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+}
+
+/* ══ NOTIFICA ══ */
+.notif{position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%) translateY(40px);background:rgba(14,30,10,.97);color:#80d860;border:1px solid rgba(50,140,40,.4);padding:.55rem 1.3rem;font-family:var(--fm);font-size:10px;z-index:9001;opacity:0;transition:all .35s;pointer-events:none;letter-spacing:1px;text-transform:uppercase;border-radius:2px;white-space:nowrap}
+.notif.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ══════════════════════════════
+   S1 — COPERTINA
+══════════════════════════════ */
+#s-cover{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2.5rem 1.5rem;text-align:center;gap:1.2rem;background:radial-gradient(ellipse at 50% 35%,#10200a,var(--bg) 68%);position:relative;overflow:hidden}
+#s-cover::before{content:"";position:absolute;inset:0;background-image:repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(180,140,60,.03) 40px);pointer-events:none}
+.cv-ship{font-size:68px;display:block;animation:bob 4s ease-in-out infinite;filter:drop-shadow(0 4px 20px rgba(200,160,30,.45))}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(-1.5deg)}50%{transform:translateY(-12px) rotate(1.5deg)}}
+.cv-title{font-family:var(--ft);font-size:clamp(24px,5.5vw,46px);font-weight:700;color:var(--g2);letter-spacing:3px;line-height:1.12;text-shadow:0 0 32px rgba(210,168,30,.3)}
+.cv-sub{font-family:var(--fm);font-size:10px;letter-spacing:5px;color:rgba(240,210,130,.32);text-transform:uppercase}
+.cv-rule{width:min(320px,72vw);height:1px;background:linear-gradient(90deg,transparent,var(--g1),transparent);opacity:.55}
+.cv-proemio{max-width:340px;font-size:14px;font-style:italic;color:rgba(240,210,130,.45);line-height:1.85;border-left:2px solid rgba(180,130,40,.3);padding-left:.9rem;text-align:left}
+.cv-badge-hide{display:inline-flex;align-items:center;gap:.4rem;background:rgba(20,80,20,.25);border:1px solid rgba(50,160,50,.3);border-radius:20px;padding:4px 14px;font-family:var(--fm);font-size:10px;color:#78d868;letter-spacing:.8px}
+.cv-badge-hide::before{content:"";width:7px;height:7px;border-radius:50%;background:#58c048;display:block;animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.8)}}
+.big-btn{padding:14px 40px;background:transparent;border:1.5px solid var(--g2);color:var(--g2);font-family:var(--ft);font-size:13px;letter-spacing:3px;cursor:pointer;transition:all .3s;clip-path:polygon(10px 0%,100% 0%,calc(100% - 10px) 100%,0% 100%)}
+.big-btn:hover{background:rgba(200,160,30,.12);box-shadow:0 0 24px rgba(200,160,30,.18)}
+.cv-hint{font-family:var(--fm);font-size:10px;color:rgba(240,210,130,.3);letter-spacing:1px}
+
+/* ══════════════════════════════
+   S2 — SCEGLI RUOLO
+══════════════════════════════ */
+#s-role{padding:0;max-width:580px;margin:0 auto}
+.step-hdr{padding:1.5rem 1.25rem 1rem;text-align:center}
+.step-num{font-family:var(--fm);font-size:10px;letter-spacing:3px;color:var(--d1);text-transform:uppercase;margin-bottom:.3rem}
+.step-title{font-family:var(--ft);font-size:20px;color:var(--g2);margin-bottom:.25rem}
+.step-sub{font-size:13px;color:var(--d1);font-style:italic}
+.step-body{padding:0 1.25rem 2rem}
+
+.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-bottom:1.2rem}
+.rc{background:rgba(12,20,42,.7);border:1.5px solid rgba(180,130,40,.18);border-radius:6px;padding:1.1rem .85rem;cursor:pointer;transition:all .28s;text-align:center;position:relative;overflow:hidden}
+.rc::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,rgba(180,130,40,.06),transparent 60%);opacity:0;transition:opacity .25s}
+.rc:hover::before,.rc.sel::before{opacity:1}
+.rc:hover{border-color:rgba(180,130,40,.45);transform:translateY(-2px)}
+.rc.sel{border-color:var(--g2);background:rgba(180,130,40,.12);box-shadow:0 0 20px rgba(180,130,40,.15)}
+.rc-check{position:absolute;top:7px;right:9px;width:18px;height:18px;border-radius:50%;background:var(--g2);display:none;align-items:center;justify-content:center;font-size:10px;color:var(--bg)}
+.rc.sel .rc-check{display:flex}
+.rc-icon{font-size:32px;margin-bottom:.4rem;display:block}
+.rc-name{font-family:var(--ft);font-size:14px;font-weight:700;color:var(--g2);margin-bottom:.2rem}
+.rc-job{font-size:11px;color:var(--d1);line-height:1.4;font-style:italic}
+.rc-tasks{margin-top:.5rem;padding:.4rem .5rem;background:rgba(180,130,40,.06);border-radius:3px;font-size:11px;color:var(--d2);line-height:1.5;text-align:left}
+
+.f-label{font-family:var(--fm);font-size:10px;letter-spacing:2px;color:var(--d1);text-transform:uppercase;display:block;margin-bottom:.3rem}
+.f-inp{width:100%;background:rgba(6,10,20,.7);border:1.5px solid rgba(180,130,40,.22);border-radius:4px;color:var(--p1);padding:.7rem .9rem;font-family:var(--fb);font-size:15px;outline:none;transition:border-color .2s;margin-bottom:1rem}
+.f-inp:focus{border-color:var(--g1)}
+.f-inp::placeholder{color:rgba(240,200,100,.22);font-style:italic}
+
+.week-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1.2rem}
+.wc{background:rgba(12,20,42,.7);border:1.5px solid rgba(180,130,40,.18);border-radius:5px;padding:.8rem .7rem;cursor:pointer;transition:all .25s;position:relative}
+.wc:hover{border-color:rgba(180,130,40,.45)}
+.wc.sel{border-color:var(--g2);background:rgba(180,130,40,.1)}
+.wc-sig{font-size:20px;display:block;margin-bottom:.25rem}
+.wc-num{font-family:var(--fm);font-size:9px;letter-spacing:2px;color:var(--d1);text-transform:uppercase;margin-bottom:.2rem}
+.wc-title{font-size:12px;font-weight:600;color:var(--p1);line-height:1.3;margin-bottom:.2rem}
+.wc-caps{font-size:10px;color:var(--d1);font-style:italic;line-height:1.4}
+.wc-check{position:absolute;top:7px;right:8px;width:16px;height:16px;border-radius:50%;background:var(--g2);display:none;align-items:center;justify-content:center;font-size:9px;color:var(--bg)}
+.wc.sel .wc-check{display:flex}
+
+.go-btn{width:100%;padding:13px;background:linear-gradient(135deg,rgba(180,130,40,.22),rgba(180,130,40,.08));border:1.5px solid var(--g1);color:var(--g2);font-family:var(--ft);font-size:13px;letter-spacing:2px;cursor:pointer;transition:all .3s;clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)}
+.go-btn:hover{background:linear-gradient(135deg,rgba(180,130,40,.36),rgba(180,130,40,.16))}
+.go-btn:disabled{opacity:.35;cursor:not-allowed}
+.book-link{font-family:var(--fm);font-size:10px;color:var(--d1);cursor:pointer;text-decoration:underline;text-underline-offset:3px;background:none;border:none;display:block;text-align:center;margin-top:.85rem;letter-spacing:.5px;transition:color .2s}
+.book-link:hover{color:var(--g2)}
+
+/* ══════════════════════════════
+   S3 — LABORATORIO
+══════════════════════════════ */
+#s-lab{padding-bottom:6rem}
+.topbar{background:rgba(3,5,10,.97);border-bottom:2px solid rgba(180,130,40,.2);padding:.6rem 1rem;display:flex;align-items:center;gap:.6rem;position:sticky;top:0;z-index:40;backdrop-filter:blur(8px)}
+.tb-ship{font-size:18px}
+.tb-info{flex:1;min-width:0}
+.tb-role{font-family:var(--ft);font-size:13px;color:var(--g2);letter-spacing:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tb-week{font-family:var(--fm);font-size:9px;color:var(--d1);letter-spacing:.5px;margin-top:1px}
+.tb-btns{display:flex;gap:.3rem;flex-shrink:0}
+.tb-btn{background:transparent;border:1px solid rgba(180,130,40,.2);color:var(--d1);padding:5px 10px;font-family:var(--fm);font-size:9px;letter-spacing:.8px;cursor:pointer;transition:all .2s;text-transform:uppercase;border-radius:2px;white-space:nowrap}
+.tb-btn:hover{border-color:var(--g2);color:var(--g2)}
+
+.week-tabs{display:flex;background:rgba(3,5,10,.88);border-bottom:1px solid rgba(180,130,40,.12);overflow-x:auto;scrollbar-width:none}
+.week-tabs::-webkit-scrollbar{display:none}
+.wtab{flex-shrink:0;padding:9px 14px;font-family:var(--fm);font-size:10px;letter-spacing:.5px;color:rgba(180,130,40,.38);cursor:pointer;transition:all .22s;border-bottom:2px solid transparent;white-space:nowrap;text-transform:uppercase}
+.wtab.sel{color:var(--g2);border-bottom-color:var(--g2);background:rgba(180,130,40,.05)}
+
+.lab-body{max-width:660px;margin:0 auto;padding:.9rem}
+
+/* ── TASK INDICATOR ── */
+.task-indicator{display:flex;gap:.4rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap}
+.ti-step{display:flex;align-items:center;gap:.3rem;font-family:var(--fm);font-size:10px;color:var(--d1);letter-spacing:.5px;text-transform:uppercase}
+.ti-circle{width:22px;height:22px;border-radius:50%;border:1.5px solid rgba(180,130,40,.25);display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(180,130,40,.4);flex-shrink:0;transition:all .3s}
+.ti-circle.done{background:rgba(40,120,30,.2);border-color:rgba(60,160,50,.5);color:#60c050}
+.ti-circle.active{background:rgba(180,130,40,.18);border-color:var(--g2);color:var(--g2)}
+.ti-line{flex:1;height:1px;background:rgba(180,130,40,.15);min-width:12px}
+
+/* ── PERGAMENA ── */
+.torn-t{height:20px;background:var(--p2);clip-path:polygon(0 100%,2% 52%,4% 84%,7% 22%,9% 66%,12% 40%,14% 80%,17% 14%,19% 58%,22% 82%,25% 28%,28% 66%,30% 44%,33% 84%,36% 18%,39% 62%,42% 36%,45% 76%,48% 8%,51% 54%,54% 82%,57% 34%,60% 68%,63% 24%,66% 72%,69% 38%,72% 84%,75% 28%,78% 66%,81% 42%,84% 78%,87% 18%,90% 58%,93% 34%,96% 72%,98% 48%,100% 64%,100% 100%);margin-bottom:-1px;box-shadow:0 -2px 8px rgba(0,0,0,.3)}
+.torn-b{height:20px;background:var(--p2);clip-path:polygon(0 0,2% 48%,4% 16%,7% 78%,9% 34%,12% 60%,14% 20%,17% 86%,19% 42%,22% 18%,25% 72%,28% 32%,30% 56%,33% 14%,36% 80%,39% 38%,42% 64%,45% 24%,48% 92%,51% 46%,54% 20%,57% 66%,60% 32%,63% 76%,66% 28%,69% 62%,72% 18%,75% 72%,78% 32%,81% 58%,84% 22%,87% 82%,90% 38%,93% 64%,96% 28%,98% 56%,100% 36%,100% 0);margin-top:-1px;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.parchment{background:var(--p2);position:relative;padding:1.6rem 1.4rem;overflow:hidden}
+.parchment::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 16% 20%,rgba(110,70,18,.14) 0%,transparent 44%),radial-gradient(ellipse at 82% 72%,rgba(90,56,10,.12) 0%,transparent 40%)}
+.parchment::after{content:"";position:absolute;pointer-events:none;width:100px;height:66px;border-radius:50%;opacity:.85;background:radial-gradient(ellipse,rgba(90,60,18,.18),transparent 70%);top:var(--sy,30%);left:var(--sx,65%);transform:rotate(var(--sr,12deg)) scale(var(--ss,1))}
+.ruled{background-image:repeating-linear-gradient(transparent,transparent 27px,rgba(110,70,20,.13) 27px,rgba(110,70,20,.13) 28px);background-size:100% 28px}
+.stamp{position:absolute;top:1.1rem;right:1.1rem;font-family:var(--fm);font-size:9px;letter-spacing:2px;border:2px solid;padding:3px 8px;transform:rotate(11deg);text-transform:uppercase;background:rgba(242,212,162,.6);z-index:2}
+.p-day{font-family:var(--fm);font-size:9px;color:var(--d1);letter-spacing:2px;text-transform:uppercase;margin-bottom:.25rem}
+.p-title{font-family:var(--ft);font-size:clamp(16px,4vw,22px);font-weight:700;line-height:1.2;margin-bottom:.2rem}
+.p-coord{font-family:var(--fm);font-size:9px;color:var(--d2);letter-spacing:1px;margin-bottom:.9rem}
+.utext{font-family:var(--fb);font-size:15px;line-height:1.9;color:var(--ink);position:relative;z-index:1}
+.utext p{margin-bottom:.65rem}
+.divider{height:1px;background:linear-gradient(90deg,transparent,rgba(110,70,20,.32),transparent);margin:.9rem 0}
+
+/* ── BLOCCO MANIFATTO ── */
+.mf-card{background:rgba(160,40,20,.07);border:1px solid rgba(160,40,20,.2);border-radius:4px;padding:.8rem .9rem;margin-bottom:.85rem;display:flex;gap:.75rem;align-items:flex-start}
+.mf-icon{font-size:26px;flex-shrink:0}
+.mf-body{flex:1}
+.mf-label{font-family:var(--fm);font-size:9px;letter-spacing:2px;color:#c06040;text-transform:uppercase;margin-bottom:.2rem}
+.mf-name{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:.3rem}
+.mf-steps{list-style:none;padding:0}
+.mf-steps li{font-size:12.5px;color:rgba(24,16,8,.7);padding:2px 0 2px 1.1rem;position:relative;line-height:1.45}
+.mf-steps li::before{content:counter(step);counter-increment:step;position:absolute;left:0;color:#c06040;font-weight:700;font-size:11px;font-family:var(--fm)}
+.mf-steps{counter-reset:step}
+
+/* ── SEZIONE RUOLO ── */
+.role-section{border:1.5px solid rgba(110,70,20,.22);border-radius:5px;overflow:hidden;margin-bottom:.85rem}
+.rs-hdr{padding:.75rem .9rem;display:flex;align-items:center;gap:.6rem;background:rgba(110,70,20,.06)}
+.rs-icon{font-size:22px;flex-shrink:0}
+.rs-info{flex:1}
+.rs-title{font-family:var(--ft);font-size:14px;font-weight:700;color:var(--ink);margin-bottom:.1rem}
+.rs-desc{font-size:11.5px;color:rgba(24,16,8,.55);font-style:italic}
+.rs-mine{font-family:var(--fm);font-size:9px;background:rgba(180,130,40,.18);border:1px solid rgba(180,130,40,.4);border-radius:12px;padding:2px 9px;color:var(--g1);letter-spacing:.5px;flex-shrink:0}
+.rs-body{padding:.9rem;display:none}
+.rs-body.open{display:block}
+
+.pi-label{font-family:var(--fm);font-size:9px;letter-spacing:2px;color:var(--d1);text-transform:uppercase;display:block;margin:.7rem 0 .3rem}
+.pi{width:100%;background:transparent;border:none;border-bottom:1.5px solid rgba(110,70,20,.3);color:var(--ink);font-family:var(--fb);font-size:14.5px;padding:.28rem 0;outline:none;resize:none;line-height:1.78;transition:border-color .2s}
+.pi:focus{border-bottom-color:var(--g1)}
+.pi::placeholder{color:rgba(60,36,12,.32);font-style:italic}
+textarea.pi{min-height:80px;overflow:hidden}
+
+/* ── ISTRUZIONI GUIDATE ── */
+.guide-steps{display:grid;gap:.5rem;margin-bottom:.65rem}
+.gs{display:flex;gap:.65rem;align-items:flex-start;padding:.55rem .7rem;background:rgba(110,70,20,.05);border-radius:3px;border-left:2px solid rgba(110,70,20,.2)}
+.gs-n{width:22px;height:22px;border-radius:50%;background:var(--g1);color:var(--p2);font-family:var(--fm);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.gs-text{font-size:13.5px;color:rgba(24,16,8,.78);line-height:1.55}
+
+/* ── PALETTE DISEGNO ── */
+.palette-row{display:flex;gap:.3rem;align-items:center;flex-wrap:wrap;margin-bottom:.45rem}
+.pal-lbl{font-family:var(--fm);font-size:9px;letter-spacing:1px;color:var(--d1);text-transform:uppercase;flex-shrink:0}
+.pcol{border-radius:50%;cursor:pointer;border:2.5px solid transparent;transition:all .15s;flex-shrink:0}
+.pcol.sel{border-color:var(--g2) !important;transform:scale(1.3)}
+.psiz{border-radius:50%;background:var(--ink);cursor:pointer;border:2.5px solid transparent;transition:all .15s;flex-shrink:0;opacity:.5}
+.psiz.sel{border-color:var(--g2);opacity:1}
+.draw-canvas{display:block;width:100%;background:#ecdbb0;cursor:crosshair;touch-action:none;background-image:repeating-linear-gradient(transparent,transparent 27px,rgba(110,70,20,.1) 27px,rgba(110,70,20,.1) 28px);border:1px solid rgba(110,70,20,.3);border-radius:2px;margin-bottom:.45rem}
+.draw-btns{display:flex;gap:.35rem;margin-bottom:.35rem}
+.draw-btn{padding:5px 12px;background:transparent;border:1px solid rgba(110,70,20,.25);color:var(--d1);font-family:var(--fm);font-size:9px;letter-spacing:1px;cursor:pointer;transition:all .2s;text-transform:uppercase;border-radius:2px}
+.draw-btn:hover{border-color:var(--g1);color:var(--ink)}
+.draw-note{font-family:var(--fm);font-size:9px;color:rgba(110,70,20,.38);letter-spacing:.8px;text-transform:uppercase}
+
+/* ── AUDIO ── */
+.audio-area{text-align:center;padding:.75rem .5rem;background:rgba(110,70,20,.03);border-radius:3px}
+.rec-ring{width:60px;height:60px;border-radius:50%;border:2px solid rgba(140,30,20,.4);background:rgba(140,30,20,.07);display:inline-flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;transition:all .3s;margin:.35rem}
+.rec-ring.rec{border-color:#c02010;background:rgba(192,32,16,.16);animation:rp 1s ease-in-out infinite}
+@keyframes rp{0%,100%{box-shadow:0 0 0 0 rgba(192,32,16,.3)}70%{box-shadow:0 0 0 12px rgba(192,32,16,0)}}
+.rec-ring.ok{border-color:rgba(40,120,40,.5);background:rgba(40,120,40,.1);color:#306030}
+.rec-stat{font-family:var(--fm);font-size:10px;color:var(--d1);letter-spacing:1.5px;text-transform:uppercase;margin:.25rem 0}
+.rec-t{font-family:var(--ft);font-size:22px;color:var(--g2);font-weight:700;min-height:28px}
+audio{width:100%;height:32px;margin-top:.45rem;filter:sepia(.45) brightness(.9)}
+
+/* ── QUIZ BUILDER ── */
+.qb{background:rgba(110,70,20,.05);border:1px solid rgba(110,70,20,.18);border-radius:4px;padding:.8rem;margin-bottom:.6rem}
+.qb-num{font-family:var(--fm);font-size:9px;letter-spacing:2px;color:var(--d1);text-transform:uppercase;margin-bottom:.4rem}
+.opt-row{display:flex;gap:.35rem;align-items:center;margin:.28rem 0}
+.opt-l{width:22px;height:22px;border-radius:4px;background:rgba(180,130,40,.12);border:1px solid rgba(110,70,20,.22);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--g1);flex-shrink:0;font-family:var(--ft)}
+.opt-i{flex:1;background:transparent;border:none;border-bottom:1px solid rgba(110,70,20,.2);color:var(--ink);font-family:var(--fb);font-size:13px;padding:.22rem 0;outline:none}
+.cor-row{display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.45rem;align-items:center}
+.cor-lbl{font-family:var(--fm);font-size:9px;color:var(--d1);letter-spacing:1px;text-transform:uppercase;flex-shrink:0}
+.cor-btn{padding:4px 9px;border:1px solid rgba(110,70,20,.2);background:transparent;color:var(--d1);font-family:var(--fm);font-size:9px;cursor:pointer;border-radius:2px;transition:all .2s}
+.cor-btn.sel{background:rgba(40,120,40,.15);border-color:rgba(40,120,40,.4);color:#306028}
+
+/* ── SUGGERIMENTI ── */
+.sug-box{background:rgba(8,22,14,.5);border:1px solid rgba(40,120,60,.2);border-radius:4px;padding:.7rem;margin:.65rem 0}
+.sug-title{font-family:var(--fm);font-size:9px;letter-spacing:2px;color:rgba(80,180,80,.55);text-transform:uppercase;margin-bottom:.4rem}
+.sug-chips{display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.4rem}
+.sug-chip{padding:4px 11px;background:transparent;border:1px solid rgba(60,140,60,.22);color:rgba(150,220,150,.65);font-size:11.5px;cursor:pointer;border-radius:20px;transition:all .2s;font-family:var(--fb);font-style:italic}
+.sug-chip:hover{border-color:rgba(80,180,80,.45);color:rgba(200,240,190,.9);background:rgba(40,120,40,.1)}
+.sug-out{font-family:var(--fb);font-size:13.5px;color:var(--ink);background:rgba(232,208,138,.55);padding:.55rem .7rem;border-radius:2px;border-left:2px solid rgba(110,70,20,.4);line-height:1.68;display:none;margin-top:.35rem;font-style:italic}
+.sug-out.on{display:block;animation:fadeIn .3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── RIFLESSIONE ── */
+.rifl{background:rgba(180,130,40,.06);border:1px solid rgba(110,70,20,.2);border-radius:4px;padding:.9rem;margin:.8rem 0;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))}
+.rifl-lbl{font-family:var(--fm);font-size:9px;letter-spacing:2px;color:var(--d1);text-transform:uppercase;margin-bottom:.3rem}
+.rifl-q{font-size:14.5px;font-style:italic;color:var(--ink);line-height:1.55;margin-bottom:.55rem}
+.rifl-opts{display:grid;gap:.3rem}
+.rifl-opt{font-size:13px;color:rgba(40,24,8,.68);padding:.4rem .65rem;border:1px dashed rgba(110,70,20,.22);cursor:pointer;transition:all .22s;font-family:var(--fb);border-radius:2px}
+.rifl-opt:hover,.rifl-opt.sel{border-style:solid;border-color:var(--g1);background:rgba(180,130,40,.1);color:var(--ink)}
+
+/* ── PUBBLICA ── */
+.pub-wrap{margin-top:.85rem}
+.pub-checklist{display:grid;gap:.3rem;margin-bottom:.75rem;padding:.7rem .85rem;background:rgba(110,70,20,.05);border:1px solid rgba(110,70,20,.15);border-radius:4px}
+.pub-check{display:flex;align-items:center;gap:.5rem;font-size:13px;color:rgba(24,16,8,.65);font-family:var(--fb)}
+.pub-check .ck{width:16px;height:16px;border-radius:3px;border:1.5px solid rgba(110,70,20,.3);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;transition:all .3s}
+.pub-check.done .ck{background:rgba(40,120,30,.2);border-color:rgba(60,160,50,.5);color:#50a040}
+.pub-check.done{color:rgba(24,16,8,.85)}
+.pub-btn{width:100%;padding:13px;background:linear-gradient(135deg,rgba(180,130,40,.2),rgba(180,130,40,.07));border:1.5px solid var(--g1);color:var(--g2);font-family:var(--ft);font-size:13px;letter-spacing:2px;cursor:pointer;transition:all .3s;clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)}
+.pub-btn:hover{background:linear-gradient(135deg,rgba(180,130,40,.35),rgba(180,130,40,.15))}
+
+/* ══════════════════════════════
+   S4 — LIBRO FINALE
+══════════════════════════════ */
+#s-book{padding-bottom:5rem}
+
+/* COPERTINA LIBRO */
+.book-cover{background:linear-gradient(160deg,#0c1408,#182010,#0c1408);padding:2.5rem 1.5rem;text-align:center;border-bottom:2px solid rgba(180,130,40,.2);position:relative;overflow:hidden}
+.book-cover::before{content:"";position:absolute;inset:0;background-image:repeating-linear-gradient(0deg,transparent,transparent 29px,rgba(180,130,40,.03) 30px);pointer-events:none}
+.book-cover-ship{font-size:48px;display:block;margin-bottom:.75rem;filter:drop-shadow(0 3px 12px rgba(180,130,40,.3))}
+.book-cover-title{font-family:var(--ft);font-size:clamp(20px,4.5vw,32px);font-weight:700;color:var(--g2);letter-spacing:3px;line-height:1.15;margin-bottom:.25rem}
+.book-cover-sub{font-family:var(--fm);font-size:10px;letter-spacing:4px;color:rgba(240,200,100,.4);text-transform:uppercase;margin-bottom:1rem}
+.book-stats{display:flex;gap:1.5rem;justify-content:center;flex-wrap:wrap;margin:.85rem 0}
+.bs{text-align:center}
+.bs-n{font-family:var(--ft);font-size:26px;font-weight:700;color:var(--g2)}
+.bs-l{font-family:var(--fm);font-size:9px;letter-spacing:2px;color:var(--d1);text-transform:uppercase}
+.book-cover-rule{width:200px;height:1px;background:linear-gradient(90deg,transparent,var(--g1),transparent);opacity:.45;margin:.75rem auto 0}
+
+/* PAGINE LIBRO */
+.book-pages{padding:.75rem}
+.empty-book{text-align:center;padding:3rem 1rem}
+.empty-ico{font-size:48px;display:block;margin-bottom:.7rem;opacity:.28}
+.empty-txt{font-family:var(--fb);font-style:italic;font-size:14px;color:rgba(180,130,40,.3)}
+
+/* CARD LIBRO — layout a magazine */
+.book-card{margin-bottom:1.5rem;cursor:pointer;transition:transform .25s}
+.book-card:hover{transform:translateX(4px)}
+.bc-tt{height:16px;background:var(--p3);clip-path:polygon(0 100%,2.5% 46%,5% 80%,8% 18%,11% 64%,14% 34%,17% 78%,20% 12%,23% 56%,26% 82%,29% 28%,32% 68%,35% 44%,38% 84%,41% 18%,44% 62%,47% 34%,50% 78%,53% 10%,56% 56%,59% 38%,62% 80%,65% 24%,68% 66%,71% 38%,74% 84%,77% 28%,80% 64%,83% 42%,86% 80%,89% 18%,92% 58%,95% 34%,98% 72%,100% 46%,100% 100%);margin-bottom:-1px}
+.bc-tb{height:16px;background:var(--p3);clip-path:polygon(0 0,2.5% 54%,5% 20%,8% 82%,11% 36%,14% 66%,17% 22%,20% 88%,23% 44%,26% 18%,29% 72%,32% 32%,35% 56%,38% 16%,41% 82%,44% 40%,47% 66%,50% 22%,53% 90%,56% 44%,59% 62%,62% 18%,65% 78%,68% 32%,71% 62%,74% 16%,77% 70%,80% 30%,83% 56%,86% 20%,89% 82%,92% 40%,95% 66%,98% 28%,100% 56%,100% 0);margin-top:-1px}
+.bc-body{background:var(--p3);background-image:radial-gradient(ellipse at 14% 18%,rgba(100,60,14,.11) 0%,transparent 40%),radial-gradient(ellipse at 86% 80%,rgba(80,48,8,.09) 0%,transparent 36%);padding:1.1rem 1.2rem}
+
+/* Layout settimana nel libro */
+.bc-week-badge{font-family:var(--fm);font-size:9px;letter-spacing:2.5px;color:var(--d1);text-transform:uppercase;margin-bottom:.25rem;display:flex;align-items:center;gap:.35rem}
+.bc-week-dot{width:8px;height:8px;border-radius:50%}
+.bc-title{font-family:var(--ft);font-size:18px;font-weight:700;color:var(--ink);margin-bottom:.35rem;line-height:1.2}
+.bc-authors{display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.6rem}
+.bc-auth{display:flex;align-items:center;gap:.22rem;background:rgba(110,70,18,.1);border:1px solid rgba(110,70,18,.18);border-radius:12px;padding:2px 8px;font-family:var(--fm);font-size:9px;color:var(--d1)}
+
+/* Grid contenuto card */
+.bc-grid{display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-bottom:.55rem}
+.bc-drawing-wrap{grid-column:1/-1;text-align:center;background:rgba(110,70,18,.06);border:1px solid rgba(110,70,18,.14);border-radius:3px;padding:.4rem;margin-bottom:.1rem}
+.bc-drawing{max-width:100%;max-height:160px;display:block;margin:0 auto;filter:sepia(.1)}
+.bc-text-preview{font-size:13px;color:rgba(24,16,8,.62);font-style:italic;line-height:1.6;border-top:1px solid rgba(110,70,18,.14);padding-top:.45rem;margin-top:.35rem}
+.bc-pills{display:flex;gap:.25rem;flex-wrap:wrap}
+.pill{font-size:9px;padding:2px 8px;border-radius:10px;font-family:var(--fm);letter-spacing:.3px;text-transform:uppercase}
+.pt{background:rgba(110,70,18,.1);border:1px solid rgba(110,70,18,.18);color:var(--d1)}
+.pd{background:rgba(30,80,30,.1);border:1px solid rgba(40,100,40,.18);color:#4a6830}
+.pa{background:rgba(18,60,100,.1);border:1px solid rgba(40,100,160,.18);color:#385878}
+.pq{background:rgba(80,20,100,.1);border:1px solid rgba(100,40,140,.18);color:#604878}
+
+/* ══════════════════════════════
+   S5 — SCHEDE STAMPABILI
+══════════════════════════════ */
+#s-print{padding:1rem;max-width:680px;margin:0 auto}
+.print-intro{text-align:center;margin-bottom:1.25rem}
+.print-intro-title{font-family:var(--ft);font-size:18px;color:var(--g2);letter-spacing:2px;margin-bottom:.25rem}
+.print-intro-sub{font-size:13px;color:var(--d1);font-style:italic}
+.print-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:.75rem;margin-bottom:1rem}
+.print-card{background:rgba(12,20,42,.7);border:1.5px solid rgba(180,130,40,.2);border-radius:6px;padding:1rem;cursor:pointer;transition:all .25s}
+.print-card:hover{border-color:rgba(180,130,40,.5);transform:translateY(-2px)}
+.pc-header{display:flex;align-items:center;gap:.6rem;margin-bottom:.5rem}
+.pc-icon{font-size:24px}
+.pc-info{flex:1}
+.pc-role{font-family:var(--ft);font-size:13px;font-weight:700;color:var(--g2)}
+.pc-week{font-family:var(--fm);font-size:9px;color:var(--d1);letter-spacing:1px;text-transform:uppercase}
+.pc-desc{font-size:12px;color:var(--d1);line-height:1.5;font-style:italic}
+.pc-btn{font-family:var(--fm);font-size:9px;color:var(--g1);border:1px solid rgba(180,130,40,.25);background:transparent;padding:4px 10px;border-radius:2px;cursor:pointer;transition:all .2s;margin-top:.5rem;letter-spacing:.8px;text-transform:uppercase}
+.pc-btn:hover{border-color:var(--g2);color:var(--g2);background:rgba(180,130,40,.08)}
+
+/* ══ MODAL PAGINA COMPLETA ══ */
+.ov{position:fixed;inset:0;background:rgba(2,4,10,.92);z-index:500;display:none;align-items:flex-end;justify-content:center;padding:.5rem}
+.ov.on{display:flex}
+.sheet{background:var(--p2);width:100%;max-width:640px;max-height:92vh;overflow-y:auto;border-radius:10px 10px 4px 4px;border-top:3px solid var(--g1);box-shadow:0 -10px 40px rgba(0,0,0,.5)}
+.sh-handle{width:36px;height:4px;background:rgba(110,70,20,.28);border-radius:2px;margin:.65rem auto .2rem;cursor:pointer}
+.sh-inner{padding:.35rem 1.25rem 2.5rem}
+.sh-week{font-family:var(--fm);font-size:9px;letter-spacing:2.5px;color:var(--d1);text-transform:uppercase;margin-bottom:.25rem}
+.sh-title{font-family:var(--ft);font-size:20px;font-weight:700;color:var(--ink);margin-bottom:.38rem}
+.sh-close{float:right;background:none;border:1px solid rgba(110,70,20,.22);width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:14px;line-height:28px;text-align:center;color:var(--d1);transition:all .2s}
+.sh-close:hover{border-color:var(--g1);color:var(--ink)}
+.sh-drawing-wrap{margin:.5rem 0 .85rem;text-align:center;background:rgba(110,70,18,.06);border:1px solid rgba(110,70,18,.14);border-radius:3px;padding:.5rem}
+.sh-drawing{max-width:100%;max-height:240px;display:block;margin:0 auto;filter:sepia(.08)}
+.sh-section-lbl{font-family:var(--fm);font-size:9px;letter-spacing:2px;color:var(--d1);text-transform:uppercase;margin-bottom:.3rem;display:flex;align-items:center;gap:.35rem}
+.sh-section-lbl::after{content:"";flex:1;height:1px;background:rgba(110,70,20,.18)}
+.sh-text{font-family:var(--fb);font-size:15.5px;line-height:1.9;color:var(--ink);background:rgba(230,198,120,.12);padding:.7rem .85rem;border-radius:2px;margin-bottom:.85rem}
+.sh-q{font-size:14.5px;font-style:italic;color:var(--ink);background:rgba(180,130,40,.1);border-left:3px solid var(--g1);padding:.65rem .85rem;border-radius:0 4px 4px 0;margin-bottom:.85rem;line-height:1.55}
+.sh-quiz-q{font-size:14px;color:var(--ink);margin:.65rem 0 .35rem;font-weight:600}
+.sh-opt{padding:.45rem .7rem;border:1px solid rgba(110,70,20,.16);border-radius:4px;font-size:13.5px;color:rgba(24,16,8,.78);cursor:pointer;margin:.25rem 0;transition:all .22s;display:flex;align-items:center;gap:.4rem}
+.sh-opt:hover:not(.done){border-color:var(--g1);background:rgba(180,130,40,.08)}
+.sh-opt.ok{background:rgba(40,120,40,.12);border-color:rgba(40,140,40,.4);color:#284818}
+.sh-opt.no{background:rgba(160,40,20,.08);border-color:rgba(160,40,20,.28);color:#581008}
+.sh-ol{font-weight:700;font-family:var(--ft);font-size:10px;color:var(--g1);width:18px;flex-shrink:0}
+.sh-quiz-score{text-align:center;font-family:var(--ft);font-size:14px;color:var(--ink);padding:.5rem;margin-top:.5rem}
+
+/* ══ PRINT STYLES ══ */
+@media print{
+  body{background:#fff;color:#000;font-size:12pt}
+  .no-print,.topbar,.week-tabs,.progress-wrap,.notif,.ov,.tb-btns{display:none!important}
+  .print-page{page-break-before:always;min-height:26cm;padding:1.5cm;border:none}
+  .print-page:first-child{page-break-before:avoid}
+}
+
+/* ══ GUIDA ══ */
+#s-guide{padding:0 0 5rem}
+.guide-top{background:linear-gradient(135deg,#0c1820,#081018);padding:1.5rem 1.25rem 1rem;border-bottom:1px solid rgba(180,130,40,.18)}
+.guide-top-title{font-family:var(--ft);font-size:22px;color:var(--g2);letter-spacing:2px;margin-bottom:.2rem}
+.guide-top-sub{font-size:13px;color:var(--d1);font-style:italic}
+.guide-tabs{display:flex;background:rgba(3,5,10,.88);border-bottom:1px solid rgba(180,130,40,.12);overflow-x:auto;scrollbar-width:none}
+.guide-tabs::-webkit-scrollbar{display:none}
+.gtab{flex-shrink:0;padding:9px 16px;font-family:var(--fm);font-size:10px;letter-spacing:.5px;color:rgba(180,130,40,.38);cursor:pointer;transition:all .22s;border-bottom:2px solid transparent;white-space:nowrap;text-transform:uppercase}
+.gtab.sel{color:var(--g2);border-bottom-color:var(--g2);background:rgba(180,130,40,.05)}
+.guide-body{max-width:660px;margin:0 auto;padding:1.1rem}
+.gpanel{display:none}.gpanel.on{display:block;animation:fadeIn .3s ease}
+.g-section{margin-bottom:1.5rem}
+.g-section-title{font-family:var(--ft);font-size:16px;color:var(--g2);margin-bottom:.65rem;display:flex;align-items:center;gap:.5rem}
+.g-card{background:rgba(12,20,42,.65);border:1px solid rgba(180,130,40,.18);border-radius:6px;padding:1rem;margin-bottom:.65rem}
+.g-card-title{font-family:var(--ft);font-size:14px;color:var(--g2);margin-bottom:.35rem;display:flex;align-items:center;gap:.4rem}
+.g-card-body{font-size:13.5px;color:rgba(240,210,130,.65);line-height:1.7}
+.g-card-body li{margin-left:1.1rem;margin-bottom:.2rem}
+.g-tip{background:rgba(180,130,40,.08);border-left:3px solid var(--g1);padding:.65rem .85rem;border-radius:0 4px 4px 0;font-size:13px;color:rgba(240,210,130,.75);line-height:1.6;margin:.5rem 0;font-style:italic}
+.g-badge{display:inline-block;padding:2px 10px;border-radius:12px;font-family:var(--fm);font-size:10px;letter-spacing:.5px;text-transform:uppercase;margin-right:.3rem;margin-bottom:.3rem}
+.gb-r{background:rgba(160,40,20,.15);border:1px solid rgba(160,40,20,.3);color:#e08070}
+.gb-g{background:rgba(20,100,40,.15);border:1px solid rgba(20,100,40,.3);color:#70c080}
+.gb-b{background:rgba(20,60,160,.15);border:1px solid rgba(20,60,160,.3);color:#7090e0}
+.gb-y{background:rgba(180,130,40,.15);border:1px solid rgba(180,130,40,.3);color:var(--g2)}
+.session-row{display:grid;grid-template-columns:auto 1fr;gap:.5rem 1rem;margin-bottom:.5rem;align-items:start}
+.sess-time{font-family:var(--fm);font-size:10px;color:var(--g1);letter-spacing:1px;padding-top:2px;white-space:nowrap}
+.sess-desc{font-size:13px;color:rgba(240,210,130,.7);line-height:1.55}
+.role-guide-card{border-radius:5px;padding:.85rem;margin-bottom:.6rem}
+
+
+/* ── SALVATAGGIO ── */
+.tb-save{border-color:rgba(40,160,80,.35) !important;color:rgba(100,200,120,.8) !important}
+.tb-save:hover{border-color:rgba(40,200,80,.6) !important;color:#60d080 !important;background:rgba(40,160,80,.1) !important}
+.tb-load{border-color:rgba(40,120,200,.35) !important;color:rgba(100,160,220,.8) !important}
+.tb-load:hover{border-color:rgba(40,140,220,.6) !important;color:#60a0e0 !important;background:rgba(40,120,200,.1) !important}
+/* ── SEZIONI PIU GRANDI ── */
+.mf-card{padding:1.1rem 1rem !important}
+.mf-steps li{font-size:13.5px !important;line-height:1.65 !important;margin-bottom:.55rem !important}
+.mf-name{font-size:16px !important;margin-bottom:.4rem !important}
+.rs-body.open{padding:1.1rem !important}
+.guide-card-body li{font-size:13.5px !important;line-height:1.7 !important}
+/* ── COPERTINA SENZA BADGE OFFLINE ── */
+.cv-badge-hide{display:none !important}
+/* ── SETTIMANA CARD PIU GRANDI ── */
+.wc{padding:1rem !important}
+.wc-title{font-size:13px !important}
+.wc-caps{font-size:11px !important}
+/* ── ROLE CARD PIU GRANDI ── */
+.rc{padding:1.25rem .95rem !important}
+.rc-icon{font-size:34px !important}
+.rc-name{font-size:14.5px !important}
+.rc-tasks{font-size:12px !important;padding:.5rem !important}
+
+</style>
+</head>
+<body>
+
+<div class="progress-wrap"><div class="progress-fill" id="prog" style="width:0%"></div></div>
+
+<!-- ══ S1 COPERTINA ══ -->
+<div id="s-cover" class="scr on">
+  <div style="width:min(220px,55vw);margin:0 auto">
+    <svg width="100%" viewBox="0 0 340 200" role="img">
+      <title>Logo Ardigonauti — nave con vela a forma di A</title>
+      <style>
+        .hu2{fill:#2A1A06;stroke:#C8940A;stroke-width:1.2}
+        .ms2{fill:none;stroke:#C8940A;stroke-width:2.5;stroke-linecap:round}
+        .sf2{fill:#D4A820;opacity:.92}
+        .ss2{fill:none;stroke:#8A6010;stroke-width:1.2}
+        .sh2{fill:#B88010;opacity:.4}
+        .rp2{fill:none;stroke:#8A6010;stroke-width:1.2;stroke-dasharray:3 2}
+        .fl2{fill:#8A2010}
+        .or2{fill:none;stroke:#6A4820;stroke-width:1.5;stroke-linecap:round}
+        .wl{fill:none;stroke:#1E3A5A;stroke-width:1.5;stroke-linecap:round}
+        .wa1{animation:wave1 3s ease-in-out infinite}
+        .wa2{animation:wave2 3.5s ease-in-out infinite}
+        @keyframes wave1{0%,100%{d:path("M60 172 Q85 167 110 172 Q135 177 160 172 Q185 167 210 172 Q235 177 260 172 Q280 168 300 172")}50%{d:path("M60 172 Q85 177 110 172 Q135 167 160 172 Q185 177 210 172 Q235 167 260 172 Q280 176 300 172")}}
+        @keyframes wave2{0%,100%{d:path("M40 182 Q70 177 100 182 Q130 187 160 182 Q190 177 220 182 Q250 187 280 182 Q300 179 320 182")}50%{d:path("M40 182 Q70 187 100 182 Q130 177 160 182 Q190 187 220 182 Q250 177 280 182 Q300 185 320 182")}}
+      </style>
+      <!-- scafo -->
+      <path class="hu2" d="M88 162 Q105 171 170 175 Q235 171 252 162 L245 152 Q170 160 95 152 Z"/>
+      <line x1="95" y1="156" x2="245" y2="156" stroke="#C8940A" stroke-width="0.6" opacity="0.4"/>
+      <!-- remi -->
+      <line class="or2" x1="112" y1="160" x2="100" y2="172"/>
+      <line class="or2" x1="134" y1="163" x2="125" y2="175"/>
+      <line class="or2" x1="206" y1="163" x2="215" y2="175"/>
+      <line class="or2" x1="228" y1="160" x2="240" y2="172"/>
+      <!-- onde animate -->
+      <path class="wl wa1" d="M60 172 Q85 167 110 172 Q135 177 160 172 Q185 167 210 172 Q235 177 260 172 Q280 168 300 172"/>
+      <path class="wl wa2" d="M40 182 Q70 177 100 182 Q130 187 160 182 Q190 177 220 182 Q250 187 280 182 Q300 179 320 182" style="opacity:.5"/>
+      <!-- albero -->
+      <line class="ms2" x1="170" y1="151" x2="170" y2="30"/>
+      <!-- vela A — gamba sx -->
+      <path class="sf2" d="M170 38 L100 142 L122 142 L170 74 Z"/>
+      <!-- vela A — gamba dx -->
+      <path class="sf2" d="M170 38 L240 142 L218 142 L170 74 Z"/>
+      <!-- traversa A -->
+      <path class="sf2" d="M124 106 L216 106 L210 120 L130 120 Z"/>
+      <!-- ombra volume -->
+      <path class="sh2" d="M170 38 L155 74 L122 142 L100 142 Z"/>
+      <!-- contorno A -->
+      <path class="ss2" d="M170 38 L100 142 L122 142 L130 120 L210 120 L218 142 L240 142 L170 38 Z"/>
+      <line class="ss2" x1="124" y1="106" x2="216" y2="106"/>
+      <!-- corde -->
+      <line class="rp2" x1="170" y1="38" x2="95" y2="152"/>
+      <line class="rp2" x1="170" y1="38" x2="245" y2="152"/>
+      <!-- bandierina -->
+      <polygon class="fl2" points="170,24 186,32 170,40"/>
+    </svg>
+  </div>
+  <div class="cv-title">IL NOSTRO<br>DIARIO DI BORDO</div>
+  <div class="cv-sub">Odissea · Ogni classe ha la sua storia</div>
+  <div class="cv-rule"></div>
+  <p class="cv-proemio">"Narrami, o Musa, l'uomo dalle numerose risorse, che tanto vagò dopo aver distrutto la sacra rocca di Troia…"</p>
+  <div class="cv-badge-hide">Un file · Nessun account · Qualsiasi browser</div>
+  <button class="big-btn" onclick="vai('s-role')">Sali a bordo →</button>
+  <button class="big-btn" style="font-size:11px;padding:8px 22px;margin-top:-.3rem" onclick="vai('s-guide')">📚 Guida al progetto</button>
+</div>
+
+<!-- ══ S2 RUOLO ══ -->
+<div id="s-role" class="scr">
+  <div class="step-hdr">
+    <div class="step-num">Passo 1 di 3 — Chi sei?</div>
+    <div class="step-title">Scegli il tuo ruolo a bordo</div>
+    <div class="step-sub">Ogni gruppo ha 4 ruoli — uno per ragazzo</div>
+  </div>
+  <div class="step-body">
+    <div class="role-grid">
+      <div class="rc" id="rc-scriba" onclick="sceglRuolo('scriba','✒️','Il Capitano')">
+        <div class="rc-check">✓</div>
+        <span class="rc-icon">✒️</span>
+        <div class="rc-name">Il Capitano</div>
+        <div class="rc-job">Scrive il racconto</div>
+        <div class="rc-tasks">Scrive il racconto dell'episodio con le sue parole</div>
+      </div>
+      <div class="rc" id="rc-pittore" onclick="sceglRuolo('pittore','🖌️','Il Pittore')">
+        <div class="rc-check">✓</div>
+        <span class="rc-icon">🖌️</span>
+        <div class="rc-name">Il Pittore</div>
+        <div class="rc-job">Illustra la scena</div>
+        <div class="rc-tasks">Disegna a mano libera su pergamena digitale</div>
+      </div>
+      <div class="rc" id="rc-aedo" onclick="sceglRuolo('aedo','📣','L\'Aedo')">
+        <div class="rc-check">✓</div>
+        <span class="rc-icon">📣</span>
+        <div class="rc-name">L'Aedo</div>
+        <div class="rc-job">Narra con la voce</div>
+        <div class="rc-tasks">Registra la sua voce che racconta l'episodio</div>
+      </div>
+      <div class="rc" id="rc-cartografo" onclick="sceglRuolo('cartografo','🗺️','Il Cartografo')">
+        <div class="rc-check">✓</div>
+        <span class="rc-icon">🗺️</span>
+        <div class="rc-name">Il Cartografo</div>
+        <div class="rc-job">Crea il quiz</div>
+        <div class="rc-tasks">Inventa 2 domande per i compagni che leggeranno la pagina</div>
+      </div>
+    </div>
+
+    <label class="f-label">Passo 2 — Il tuo nome a bordo</label>
+    <input class="f-inp" id="inp-nome" placeholder="Es: Marco delle Tempeste, La Navigatrice, Il Timoniere…" maxlength="30">
+
+    <label class="f-label" style="margin-bottom:.45rem">Passo 3 — Scegli la settimana</label>
+    <div class="week-grid" id="week-grid"></div>
+
+    <button class="go-btn" id="go-btn" onclick="avviaLab()">Apri il tuo diario →</button>
+    <button class="book-link" onclick="vai('s-book')">📖 Guarda il libro della classe</button>
+    <button class="book-link" onclick="vai('s-print')" style="margin-top:.3rem">🖨️ Schede stampabili per i manufatti</button>
+    <button class="book-link" onclick="vai('s-guide')" style="margin-top:.3rem">📚 Guida al progetto</button>
+    <div style="display:flex;gap:.5rem;margin-top:1rem;justify-content:center">
+      <button class="tb-btn tb-save" style="padding:8px 16px;font-size:11px" onclick="salvaSessione()">💾 Salva il lavoro</button>
+      <label class="tb-btn tb-load" style="padding:8px 16px;font-size:11px;cursor:pointer">📂 Carica salvataggio<input type="file" accept=".json" style="display:none" onchange="caricaSessione(this)"></label>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ S6 GUIDA ══ -->
+<div id="s-guide" class="scr">
+  <div class="guide-top">
+    <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.6rem">
+      <button class="tb-btn" onclick="vai('s-role')" style="flex-shrink:0">← Indietro</button>
+      <div>
+        <div class="guide-top-title">📚 Guida al Progetto</div>
+        <div class="guide-top-sub">Per insegnanti e ragazzi — tutto quello che serve sapere</div>
+      </div>
+    </div>
+  </div>
+  <div class="guide-tabs">
+    <div class="gtab sel" id="gt-0" onclick="switchGuide(0)">🗺️ Panoramica</div>
+    <div class="gtab" id="gt-1" onclick="switchGuide(1)">⏱️ Sessioni</div>
+    <div class="gtab" id="gt-2" onclick="switchGuide(2)">👥 Ruoli</div>
+    <div class="gtab" id="gt-3" onclick="switchGuide(3)">🖐️ Manufatti</div>
+  </div>
+  <div class="guide-body">
+
+    <!-- PANNELLO 0: PANORAMICA -->
+    <div class="gpanel on" id="gp-0">
+      <div class="g-section">
+        <div class="g-section-title">⛵ Cos'è questo progetto?</div>
+        <div class="g-card">
+          <div class="g-card-body">Un percorso di 4 settimane sull'Odissea per la prima media. Ogni settimana un gruppo di 4 ragazzi costruisce una pagina del <strong>Diario di Bordo</strong> — un diario antico ritrovato in fondo al mare. Il prodotto finale è questo file HTML: i ragazzi contribuiscono con i propri testi, disegni, registrazioni e domande, e alla fine <em>è già il libro da mostrare ai genitori</em>.</div>
+        </div>
+      </div>
+      <div class="g-section">
+        <div class="g-section-title">📐 Struttura generale</div>
+        <div class="g-card">
+          <div class="g-card-title">⏳ 4 settimane × 2 sessioni da 60 min</div>
+          <div class="g-card-body">
+            <ul>
+              <li>Ogni settimana copre 3–4 capitoli dell'Odissea</li>
+              <li>Ogni gruppo ha 4 ragazzi con ruoli fissi: Il Capitano, Il Pittore, L'Aedo, Il Cartografo</li>
+              <li>Ogni settimana il gruppo costruisce una pagina digitale + un oggetto fisico</li>
+              <li>Alla fine: libro digitale completo + 4 manufatti esposti in classe</li>
+            </ul>
+          </div>
+        </div>
+        <div class="g-card">
+          <div class="g-card-title">📦 Cosa produce ogni gruppo</div>
+          <div class="g-card-body">
+            <span class="g-badge gb-y">✒️ Testo</span> racconto dell'episodio con le proprie parole<br>
+            <span class="g-badge gb-g">🖌️ Disegno</span> illustrazione a mano libera su canvas digitale<br>
+            <span class="g-badge gb-b">📣 Audio</span> narrazione registrata (max 60 secondi)<br>
+            <span class="g-badge gb-r">🗺️ Quiz</span> 2 domande con 4 risposte per i compagni<br>
+            <span class="g-badge" style="background:rgba(160,40,120,.15);border:1px solid rgba(160,40,120,.3);color:#e080c0">🖐️ Oggetto</span> manufatto fisico con superpotere personale
+          </div>
+        </div>
+      </div>
+      <div class="g-section">
+        <div class="g-section-title">🖥️ Come usare questo file</div>
+        <div class="g-card">
+          <div class="g-card-body">
+            <ul>
+              <li>Il file è pubblicato online — ogni ragazzo lo apre nel browser dal link condiviso su Classroom, senza installare nulla e senza creare account</li>
+              <li>Ogni ragazzo sceglie ruolo + nome + settimana e lavora sulla propria sezione</li>
+              <li>Dopo aver premuto <strong>"Pubblica"</strong> il contributo appare nel Libro della classe</li>
+              <li>I dati vengono salvati nel browser del dispositivo usato — per continuare da un altro dispositivo usare i bottoni <strong>💾 Salva</strong> e <strong>📂 Carica</strong></li>
+              <li>Il Libro è visibile a tutti coloro che aprono lo stesso link</li>
+            </ul>
+          </div>
+        </div>
+        <div class="g-tip">💡 Vuoi scaricare il file? Clicca qui: <a id="download-link" href="#" onclick="scaricaFile(event)" style="color:var(--g2);font-weight:700;text-decoration:underline;text-underline-offset:3px">⬇️ Scarica index.html</a> — potrai aprirlo e usarlo anche senza connessione.</div>
+      </div>
+    </div>
+
+    <!-- PANNELLO 1: SESSIONI -->
+    <div class="gpanel" id="gp-1">
+      <div class="g-section">
+        <div class="g-section-title">⏱️ Programma della Lezione: Il Viaggio di Ulisse</div>
+        <div class="g-card">
+          <div class="session-row">
+            <div class="sess-time">0–5 min</div>
+            <div class="sess-desc">
+              <strong>Riepilogo</strong><br>
+              L'insegnante rilegge ad alta voce il testo della settimana (o invita i ragazzi a leggerlo a turno).<br>
+              <span style="color:var(--d2)">▸ Domanda guida: <em>"Cosa ricordate di quanto letto la settimana scorsa?"</em></span>
+            </div>
+          </div>
+          <div class="session-row">
+            <div class="sess-time">5–15 min</div>
+            <div class="sess-desc">
+              <strong>Narrazione</strong><br>
+              Lettura del brano su Ulisse tramite l'app (o in formato PDF). Durante l'ascolto o la lettura, i ragazzi sono invitati a sottolineare i passaggi o le parole che li colpiscono maggiormente.
+            </div>
+          </div>
+          <div class="session-row">
+            <div class="sess-time">15–45 min</div>
+            <div class="sess-desc">
+              <strong>Costruzione — Lavoro Digitale</strong><br>
+              Ogni studente si dedica al proprio compito digitale specifico all'interno del gruppo:<br>
+              <span style="color:var(--d2)">▸ <strong>Il Capitano</strong>: redige il testo.</span><br>
+              <span style="color:var(--d2)">▸ <strong>Il Pittore</strong>: realizza i disegni e le illustrazioni.</span><br>
+              <span style="color:var(--d2)">▸ <strong>L'Aedo</strong>: si occupa della registrazione audio.</span><br>
+              <span style="color:var(--d2)">▸ <strong>Il Cartografo</strong>: formula e trascrive le domande di approfondimento.</span><br>
+              L'insegnante supervisiona l'attività passando tra i vari gruppi per fornire supporto.
+            </div>
+          </div>
+          <div class="session-row">
+            <div class="sess-time">45–55 min</div>
+            <div class="sess-desc">
+              <strong>Manufatto Fisico e Rituale</strong><br>
+              Il gruppo collabora alla creazione dell'oggetto della settimana.<br>
+              <span style="color:var(--d2)">▸ <em>Momento individuale:</em> Segue un breve rituale personale (scrittura di un bigliettino, applicazione di un nastro, ecc.) da svolgersi in silenzio per favorire la riflessione.</span>
+            </div>
+          </div>
+          <div class="session-row">
+            <div class="sess-time">55–60 min</div>
+            <div class="sess-desc">
+              <strong>La Stella del Giorno</strong><br>
+              Chiusura dell'attività:<br>
+              <span style="color:var(--d2)">▸ <em>Condivisione:</em> Ogni ragazzo sceglie una parola per descrivere il proprio stato d'animo o l'esperienza vissuta.</span><br>
+              <span style="color:var(--d2)">▸ <em>Consegna:</em> Il gruppo pubblica ufficialmente la pagina completata all'interno del libro digitale.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="g-section">
+        <div class="g-section-title">📅 Calendario 4 settimane</div>
+        <div class="g-card">
+          <div class="g-card-title">⚔️ Settimana 1 — Troia, Loto, Polifemo</div>
+          <div class="g-card-body">Capitoli 1–4 · Manufatto: Il Cavallo di Troia · Superpotere: il segreto del vincitore</div>
+        </div>
+        <div class="g-card">
+          <div class="g-card-title">👁️ Settimana 2 — Eolo, Circe, Sirene</div>
+          <div class="g-card-body">Capitoli 5–9 · Manufatto: Maschera + Otre dei Venti · Superpotere: chiamarsi Nessuno</div>
+        </div>
+        <div class="g-card">
+          <div class="g-card-title">🧜‍♀️ Settimana 3 — Scilla, Calipso, Penelope</div>
+          <div class="g-card-body">Capitoli 10–12 · Manufatto: Mappa + Pergamena · Superpotere: la rotta che non si perde</div>
+        </div>
+        <div class="g-card">
+          <div class="g-card-title">🏠 Settimana 4 — Il ritorno a Itaca</div>
+          <div class="g-card-body">Capitoli 13–14 · Manufatto: Il Vaso del Ritorno · Superpotere: l'oggetto che torna a casa</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PANNELLO 2: RUOLI -->
+    <div class="gpanel" id="gp-2">
+      <div class="g-section">
+        <div class="g-section-title">👥 I 4 ruoli a bordo</div>
+        <div class="g-tip">I ruoli sono fissi per tutto il progetto — ogni ragazzo mantiene lo stesso ruolo nelle 4 settimane. Questo crea identità e competenza progressiva.</div>
+
+        <div class="role-guide-card" style="background:rgba(180,130,40,.08);border:1px solid rgba(180,130,40,.2)">
+          <div class="g-card-title">✒️ Il Capitano</div>
+          <div class="g-card-body">
+            <strong>Cosa fa:</strong> scrive il racconto dell'episodio con le sue parole — non copia, rielabora.<br>
+            <strong>Obiettivo:</strong> comprensione del testo, produzione scritta, punto di vista personale.<br>
+            <strong>Suggerimento insegnante:</strong> incoraggiare a iniziare con "era notte fonda quando..." o "con i miei occhi ho visto...". Anche solo 4 righe sono un successo.<br>
+            <strong>Se è bloccato:</strong> usare i suggerimenti nell'app (Idea 1, 2, 3).
+          </div>
+        </div>
+
+        <div class="role-guide-card" style="background:rgba(40,120,40,.06);border:1px solid rgba(40,120,40,.18)">
+          <div class="g-card-title">🖌️ Il Pittore</div>
+          <div class="g-card-body">
+            <strong>Cosa fa:</strong> disegna la scena più importante dell'episodio sul canvas digitale (pennello a mano libera su pergamena).<br>
+            <strong>Obiettivo:</strong> rappresentazione visiva, sintesi narrativa, espressione artistica.<br>
+            <strong>Suggerimento insegnante:</strong> non importa quanto è "bello" — importa che rappresenti qualcosa di specifico. Chiedere: "cosa stai disegnando esattamente?"<br>
+            <strong>Colori disponibili:</strong> nero seppia, marrone, verde, blu notte, rosso, ocra, bianco (gomma).
+          </div>
+        </div>
+
+        <div class="role-guide-card" style="background:rgba(20,60,160,.06);border:1px solid rgba(20,60,160,.18)">
+          <div class="g-card-title">📣 L'Aedo</div>
+          <div class="g-card-body">
+            <strong>Cosa fa:</strong> registra la sua voce che racconta l'episodio (max 90 secondi, si ferma automaticamente).<br>
+            <strong>Obiettivo:</strong> oralità, espressione, ascolto attivo dei compagni.<br>
+            <strong>Suggerimento insegnante:</strong> far preparare prima 3 punti chiave su un foglietto. La registrazione si può rifare quante volte si vuole prima di pubblicare.<br>
+            <strong>Se non c'è microfono:</strong> l'Aedo detta alil Capitano le sue parole.
+          </div>
+        </div>
+
+        <div class="role-guide-card" style="background:rgba(120,40,160,.06);border:1px solid rgba(120,40,160,.18)">
+          <div class="g-card-title">🗺️ Il Cartografo</div>
+          <div class="g-card-body">
+            <strong>Cosa fa:</strong> crea 2 domande a scelta multipla (4 opzioni) sull'episodio. Può modificare quelle già presenti o scriverne di nuove.<br>
+            <strong>Obiettivo:</strong> comprensione profonda, pensiero critico, capacità di sintetizzare.<br>
+            <strong>Suggerimento insegnante:</strong> far leggere il testo due volte prima. Una domanda deve essere "facile" (risposta nel testo), una "difficile" (richiede riflessione).<br>
+            <strong>Bonus:</strong> le domande vengono giocate dai compagni nel libro finale.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PANNELLO 3: MANUFATTI -->
+    <div class="gpanel" id="gp-3">
+      <div class="g-section">
+        <div class="g-section-title">🖐️ I manufatti fisici — la logica</div>
+        <div class="g-tip">Ogni oggetto ha tre livelli: <strong>costruzione</strong> (tecnica), <strong>rituale</strong> (momento personale e privato) e <strong>superpotere</strong> (significato che collega Ulisse alla vita del ragazzo).</div>
+
+        <div class="g-card">
+          <div class="g-card-title">⚔️ Sett.1 — Il Cavallo di Troia <span class="g-badge gb-y">Superpotere</span></div>
+          <div class="g-card-body">
+            Scatola di cartone trasformata in cavallo. <em>Rituale:</em> ogni ragazzo scrive su un bigliettino il suo segreto personale per vincere le sfide difficili, lo arrotola con un filo rosso e lo nasconde dentro. Il cavallo non si apre davanti alla classe — il segreto è suo.<br>
+            <strong>Materiali:</strong> scatola cartone, tempere, pennarello dorato, bigliettino, filo rosso.
+          </div>
+        </div>
+
+        <div class="g-card">
+          <div class="g-card-title">👁️ Sett.2 — Maschera + Otre dei Venti <span class="g-badge gb-y">Superpotere</span></div>
+          <div class="g-card-body">
+            Maschera per il role-play cieco-guida (chi la indossa viene guidato bendato dal compagno). Otre = sacchettino con pezzetti di carta con le paure scritte dentro, e un nastro azzurro con il desiderio più grande legato fuori.<br>
+            <strong>Materiali:</strong> cartone A3, tempere, sacchettino, pezzetti di carta, nastro azzurro.
+          </div>
+        </div>
+
+        <div class="g-card">
+          <div class="g-card-title">🧜‍♀️ Sett.3 — Mappa + Pergamena Sirene <span class="g-badge gb-y">Superpotere</span></div>
+          <div class="g-card-body">
+            Mappa del viaggio invecchiata con bustina di tè bagnata + bordi bruciacchiati (adulto). Nel punto Itaca: nome della propria "casa". Pergamena con filastrocca delle Sirene macchiata di caffè freddo.<br>
+            <strong>Materiali:</strong> foglio A4, bustina tè, acqua, accendino (solo adulto), caffè, spago.
+          </div>
+        </div>
+
+        <div class="g-card">
+          <div class="g-card-title">🏠 Sett.4 — Il Vaso del Ritorno <span class="g-badge gb-y">Superpotere</span></div>
+          <div class="g-card-body">
+            Pasta di sale modellata a ciotola, incisa, dipinta stile greco. Sul fondo: nome + una parola. Dentro: bigliettino "chi aspetteresti per vent'anni". <strong>Unico oggetto portato a casa</strong> dal ragazzo.<br>
+            <strong>Materiali:</strong> farina, sale, acqua, tempere, stuzzicadenti, pennello.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    </div>
+  </div>
+</div>
+
+  </div>
+</div>
+
+<!-- ══ S3 LABORATORIO ══ -->
+<div id="s-lab" class="scr">
+  <div class="topbar no-print">
+    <span class="tb-ship">⚓</span>
+    <div class="tb-info">
+      <div class="tb-role" id="tb-role">Diario di Bordo</div>
+      <div class="tb-week" id="tb-week"></div>
+    </div>
+    <div class="tb-btns">
+      <button class="tb-btn" onclick="vai('s-role')" title="Cambia ruolo o settimana">← Ruolo</button>
+      <button class="tb-btn" onclick="vai('s-book')" title="Vedi il libro della classe">📖 Libro</button>
+      <button class="tb-btn tb-save" onclick="salvaSessione()" title="Scarica il file di salvataggio">💾 Salva</button>
+      <button class="tb-btn tb-load" onclick="document.getElementById('load-input').click()" title="Carica un salvataggio precedente">📂 Carica</button>
+      <input type="file" id="load-input" accept=".json" style="display:none" onchange="caricaSessione(this)">
+    </div>
+  </div>
+  <div class="week-tabs no-print" id="week-tabs"></div>
+  <div class="lab-body" id="lab-body"></div>
+</div>
+
+<!-- ══ S4 LIBRO ══ -->
+<div id="s-book" class="scr">
+  <div class="book-cover">
+    <span class="book-cover-ship">📖</span>
+    <div class="book-cover-title">Il Nostro Libro<br>dell'Odissea</div>
+    <div class="book-cover-sub" id="book-anno">Prima Media</div>
+    <div class="book-stats" id="book-stats"></div>
+    <div class="book-cover-rule"></div>
+  </div>
+  <div class="book-pages" id="book-pages">
+    <div class="empty-book"><span class="empty-ico">📭</span><div class="empty-txt">Il libro è ancora vuoto.<br>Costruite le prime pagine nel laboratorio!</div></div>
+  </div>
+  <div style="text-align:center;padding:1rem">
+    <button class="big-btn" style="font-size:11px;padding:10px 28px" onclick="vai('s-role')">← Torna al laboratorio</button>
+  </div>
+</div>
+
+<!-- ══ S5 SCHEDE STAMPABILI ══ -->
+<div id="s-print" class="scr">
+  <div class="print-intro">
+    <div class="print-intro-title">🖨️ Schede Stampabili</div>
+    <div class="print-intro-sub">Una scheda per ogni ruolo × ogni settimana</div>
+  </div>
+  <div class="print-grid" id="print-grid"></div>
+  <div style="text-align:center"><button class="big-btn" style="font-size:11px;padding:10px 28px" onclick="vai('s-role')">← Torna</button></div>
+</div>
+
+<!-- ══ MODAL PAGINA ══ -->
+<div class="ov" id="modal-ov">
+  <div class="sheet">
+    <div class="sh-handle" onclick="chiudiModal()"></div>
+    <div class="sh-inner" id="modal-inner"></div>
+  </div>
+</div>
+
+<div class="notif" id="notif"></div>
+
+<script>
+/* ══════════════════════════════════════
+   DATI — testo dal PDF 
+══════════════════════════════════════ */
+const WEEKS=[
+{id:0,sig:"⚔️",dot:"#8a2010",day:"Giorni 1–30",luogo:"DA TROIA A ITACA",
+ title:"La guerra è finita. Si parte.",coord:"35°N 26°E — Rotta Ovest",
+ stampC:"#7a1808",stamp:"GUERRA CONCLUSA",sx:"64%",sy:"17%",sr:"-8deg",ss:"1.2",
+ testo:["La guerra di Troia è finita. Dieci anni. Ho vinto con un inganno: un cavallo di legno dentro cui si nascosero i miei soldati. I Troiani lo portarono dentro le mura credendo fosse un dono degli dèi. Di notte uscimmo e demmo fuoco a tutto.",
+        "I Ciconi ci attaccarono all'alba. Avevo detto di ripartire subito — ma i compagni non mi ascoltarono. Ho visto morire dodici uomini per nave.",
+        "Poi la tempesta. Nove giorni. Isola dei Mangiatori di Loto. I tre esploratori mangiarono quel frutto magico e dimenticarono tutto — anche la famiglia. Li ho trascinati via mentre piangevano."],
+ mf:{
+     nome:"Il Cavallo di Troia",
+     superpotere:"IL SEGRETO DEL VINCITORE",
+     significato:"Ulisse vinse non con la forza ma con una idea. Dentro il tuo cavallo nasconderai il TUO segreto per vincere le sfide difficili.",
+     tempo:"45 minuti",
+     nota_ins:"Lasciare almeno 5 minuti di silenzio per la parte del bigliettino. Non chiedere cosa hanno scritto.",
+     steps:[
+       "PREPARA LA BASE — Prendi una scatola di cartone tipo scarpe. Se non ce l'hai, piega e incolla un foglio di cartoncino spesso a forma di rettangolo",
+       "COSTRUISCI IL CORPO — Taglia dal cartone extra 4 strisce (gambe) e 1 rettangolo lungo (collo + testa). Incolla tutto con colla vinilica. Aspetta 5 minuti che asciughi",
+       "MODELLA LA TESTA — Arrotola un pezzo di cartone a cono per fare la testa del cavallo. Incollala in cima al collo. Taglia 2 orecchie triangolari e attaccale",
+       "DIPINGI — Mescola marrone + ocra + un po' di nero. Dipingi tutto il cavallo con pennello largo. Lascia asciugare 10 minuti. Aggiungi dettagli: criniera con linee scure, occhi, zoccoli neri",
+       "SCRIVI SUL FIANCO — Con pennarello dorato o giallo scrivo DONO DEGLI DEI sul fianco destro. Disegna una porta segreta piccola con il pennarello",
+       "RITUALE — In silenzio, su un bigliettino scrivi: il tuo metodo segreto per affrontare una cosa difficile. Cosa fai quando hai paura? Cosa ti dà foraggio? Non deve essere lungo: anche una sola parola",
+       "CHIUDI IL SEGRETO — Arrotola il bigliettino, legalo con il filo rosso, infilalo dentro la scatola dalla porta segreta. Il cavallo non si apre davanti a tutti"
+     ],
+     materiali:"Scatola cartone · Cartoncino extra · Tempere (marrone ocra nero) · Pennelli · Pennarello dorato · Colla vinilica · Forbici · Bigliettino · Filo rosso"},
+ dom:"Ulisse ha vinto con un inganno. Si può ingannare qualcuno per una causa giusta?",
+ rifl:["Sì, se lo scopo è buono","No, ingannare è sempre sbagliato","Dipende da chi inganni","Non lo so — è davvero complicato"],
+ sug:{scriba:["Inizia con: «Era mezzanotte quando le fiamme si alzavano su Troia…»","Scrivi: «Con i miei occhi ho visto il cavallo di legno entrare in città…»","Racconta come ti sei sentito quando hai lasciato Itaca e la tua famiglia…"],
+      pittore:["Disegna il grande cavallo di legno fuori dalle mura di Troia","Prova a disegnare la nave di Ulisse nel mare in tempesta","Disegna Ulisse che trascina via i compagni dall'isola del Loto"],
+      aedo:["Scrive il racconto del cavallo di Troia con la voce","Fai sentire la tempesta — usa il tono della voce per il vento","Racconta come si sentivano i compagni che piangevano sull'isola"],
+      cartografo:["Come riuscirono i Greci a entrare dentro Troia?","Perché i compagni non volevano lasciare l'isola dei Lotofagi?","Cosa successe dopo la tempesta di nove giorni?"]},
+ quiz:[{q:"Come entrarono i Greci dentro Troia?",opts:["Scalando le mura","Con il cavallo di legno","Corrompendo il re","Con l'aiuto degli dèi"],c:1},
+       {q:"Perché i tre compagni non volevano tornare sulla nave?",opts:["Avevano paura del mare","Erano stanchi","Il loto li aveva fatti dimenticare tutto","Non sapevano dove andare"],c:2}]
+},
+{id:1,sig:"👁️",dot:"#4a0870",day:"Giorni 31–120",luogo:"ISOLE MALEDETTE",
+ title:"Polifemo. L'otre. Circe.",coord:"38°N 15°E — Acque pericolose",
+ stampC:"#4a0870",stamp:"PERDITE: 6 UOMINI",sx:"13%",sy:"50%",sr:"20deg",ss:"0.9",
+ testo:["Ho accecato il Ciclope. Non mi vanto. Era l'unica via. Polifemo mangiava i miei uomini due alla volta. L'ho fatto ubriacare con il vino, mi sono chiamato Nessuno, poi ho spinto un palo infuocato nel suo occhio.",
+        "Quando gli altri Ciclopi arrivarono, lui urlò: «Nessuno mi ha fatto questo!» e quelli se ne andarono. Siamo fuggiti nascosti sotto le pecore. Ma poi ho urlato il mio vero nome — errore imperdonabile. Poseidone ora mi cerca.",
+        "Eolo ci aiutò chiudendo i venti cattivi in un otre di pelle. Eravamo quasi a Itaca — si vedevano le luci dell'isola! I compagni aprirono l'otre credendo ci fosse un tesoro. Siamo tornati all'inizio.",
+        "Circe trasformò i miei uomini in maiali. Ermes mi diede un'erba magica per resistere. Dopo un anno la nostalgia di Itaca ci fece ripartire."],
+  mf:{
+     nome:"La Maschera di Polifemo + Otre dei Venti",
+     superpotere:"IL POTERE DI CHIAMARSI NESSUNO",
+     significato:"Polifemo era enorme ma stupido. Ulisse era piccolo ma furbo. La maschera serve per il role play. Il sacchettino racchiude le paure e fuori il desiderio piu grande.",
+     tempo:"50 minuti",
+     nota_ins:"Role play cieco-guida: chi ha la maschera viene bendato e guidato a voce attraverso la stanza dal compagno. 5 minuti a testa. Obiettivo: capire cosa vuol dire fidarsi.",
+     steps:[
+       "DISEGNA IL VISO — Su cartone A3 disegna un viso tondo grande che riempia quasi tutto il foglio. Al centro della fronte disegna UN OCCHIO SOLO grande come un pugno",
+       "RITAGLIA L'OCCHIO — Con le forbici ritaglia l'occhio. Questo buco serve per guardare fuori quando la si indossa nel role play",
+       "AGGIUNGI I TRATTI — Disegna sopracciglio unico e spesso, naso largo, bocca aperta con denti grandi. Il Ciclope deve sembrare feroce ma anche un po ridicolo",
+       "DIPINGI — Usa nero e marrone scuro per la pelle. Aggiungi capelli e barba con strisce di spago incollate sui bordi. Lascia asciugare 10 minuti",
+       "ATTACCA IL MANICO — Incolla o nastro un bastoncino di legno nella parte bassa. La maschera si tiene in mano davanti al viso come le maschere greche antiche",
+       "COSTRUISCI L'OTRE — Prendi il sacchettino. Su 3-4 pezzetti di carta scrivi i tuoi VENTI CATTIVI: una paura, una cosa che ti blocca. Piegali e mettili dentro. Chiudi il sacchettino",
+       "RITUALE — Prendi il nastro azzurro. Scrivi sopra il tuo VENTO BUONO: il desiderio piu grande. Legalo fuori attorno al sacchettino. I venti cattivi restano chiusi, il vento buono e legato fuori"
+     ],
+     materiali:"Cartone A3 · Tempere (nero marrone) · Forbici · Spago · Bastoncino legno · Sacchettino · Pezzetti carta · Nastro azzurro · Pennarello"},
+ dom:"Ulisse si è chiamato 'Nessuno' — poi ha urlato il suo nome per orgoglio. Coraggioso o stupido?",
+ rifl:["Coraggioso — voleva essere riconosciuto","Stupido — ha causato altri problemi","Entrambe le cose insieme","Ci saremmo comportati tutti così"],
+ sug:{scriba:["Inizia con: «Quella notte nella caverna di Polifemo ho capito cosa vuol dire vera paura…»","Racconta il momento di silenzio quando i Ciclopi se ne andarono credendo al nome 'Nessuno'","Scrivi come ci si sente ad essere tra i pochi compagni rimasti"],
+      pittore:["Disegna la caverna di Polifemo con l'occhio enorme al centro della fronte","Disegna Ulisse che fa ubriacare Polifemo con il vino","Disegna le pecore con i marinai nascosti sotto la pancia che escono"],
+      aedo:["Racconta la scena dell'accecamento — fai sentire la tensione","Descrivi il momento in cui i Ciclopi se ne vanno credendo a 'Nessuno'","Racconta il momento in cui i compagni aprono l'otre di Eolo"],
+      cartografo:["Perché il nome 'Nessuno' era il piano perfetto di Ulisse?","Cosa c'era chiuso dentro l'otre che Eolo regalò a Ulisse?","In che animale trasformò Circe i marinai di Ulisse?"]},
+ quiz:[{q:"Come si chiamò Ulisse davanti a Polifemo?",opts:["Achille","Telemaco","Nessuno","Re di Itaca"],c:2},
+       {q:"Cosa c'era dentro l'otre di Eolo?",opts:["Oro e ricchezze","Cibo per il viaggio","I venti sfavorevoli","Una mappa di Itaca"],c:2}]
+},
+{id:2,sig:"🧜‍♀️",dot:"#182858",day:"Giorni 121–730",luogo:"MARI DEL SUD",
+ title:"Le Sirene. Scilla. La solitudine.",coord:"37°N 13°E — Acque proibite",
+ stampC:"#182858",stamp:"PERICOLO MORTALE",sx:"75%",sy:"56%",sr:"-14deg",ss:"1.1",
+ testo:["Circe mi aveva avvertito delle Sirene: il loro canto era così bello che chi lo ascoltava si tuffava in mare e moriva. Ho messo la cera d'api nelle orecchie di tutti. Poi mi sono fatto legare all'albero della nave — volevo sentire quel canto senza morire.",
+        "Quando ho sentito il canto ho implorato di essere slegato. Urlavo, piangevo, promettevo tutto. I compagni mi legavano ancora più forte, come avevo ordinato. È stato il momento più difficile del viaggio.",
+        "Scilla aveva sei teste e prese sei miei uomini, uno per ciascuna. Cariddi creava un gorgo enorme che inghiottiva le navi. Non potevo evitarli entrambi — ho scelto il male minore.",
+        "Sull'isola del Sole i compagni uccisero le vacche sacre di Apollo. Li avevo avvertiti. Zeus distrusse la nave con un fulmine. Sono rimasto solo su un asse di legno nel mezzo dell'oceano."],
+ mf:{
+     nome:"La Mappa del Viaggio + Pergamena delle Sirene",
+     superpotere:"LA ROTTA CHE NON SI PERDE",
+     significato:"Ulisse si perse tante volte ma sapeva sempre dove voleva arrivare. La tua mappa dimostra che anche tu hai una rotta. La pergamena conserva le parole piu pericolose del viaggio.",
+     tempo:"50 minuti",
+     nota_ins:"La parte del bruciare i bordi la fa solo l'insegnante, non i ragazzi. Tenere acqua vicino. Il caffè per invecchiare si puo fare prima a casa.",
+     steps:[
+       "DISEGNA LA ROTTA — Su foglio A4 orizzontale disegna il Mar Mediterraneo a grandi linee (non deve essere preciso). Segna con un punto e il nome: Itaca, Troia, Isola dei Ciclopi, Isola di Circe, lo Stretto di Scilla e Cariddi, Isola di Calipso",
+       "COLLEGA LE TAPPE — Disegna la rotta con una linea tratteggiata che parte da Troia e arriva a Itaca passando per tutte le tappe. Numera le tappe in ordine",
+       "INVECCHIA CON IL TE — Prepara una tazza di te molto forte o usa una bustina bagnata direttamente. Tampona con la bustina su tutta la superficie della mappa finche non e tutta colorata di marrone-beige. Insisti sugli angoli. Lascia asciugare 5 minuti",
+       "SECONDA MANO — Quando e asciutta, fai una seconda passata piu concentrata negli angoli e lungo i bordi. Crea macchie irregolari — come se la mappa fosse stata bagnata dal mare",
+       "BRUCIA I BORDI — Solo con l'adulto: tenendo il foglio con le pinze, avvicina i bordi alla fiamma per 1-2 secondi per volta. Scopo: bordi leggermente bruniti e irregolari come dopo un naufragio. Non bruciare il centro",
+       "RITUALE — Nel punto di Itaca sulla mappa, scrivi con pennarello il nome della tua CASA — non necessariamente un posto fisico, ma la persona o la cosa per cui vale il viaggio",
+       "PERGAMENA DELLE SIRENE — Su foglio separato scrivi 4 versi in rima: il canto delle Sirene deve sembrare bellissimo e irresistibile ma nascondere qualcosa di pericoloso. Es: rima ABAB o AABB. Macchia il foglio con caffe freddo, arrotolalo e legalo con spago"
+     ],
+     materiali:"2 Fogli A4 · Bustine di te · Pennarelli nero e blu · Accendino (solo insegnante) · Pinze · Caffe freddo · Spago · Tazza d'acqua"},
+ dom:"Ulisse si è fatto legare all'albero per sentire il canto delle Sirene. Era curiosità o follia?",
+ rifl:["Curiosità pura — voleva sapere","Follia — non aveva senso rischiare","Coraggio — voleva capire per raccontarlo","Non lo so — forse aveva paura di sembrare debole"],
+ sug:{scriba:["Inizia con: «Ho sentito il canto delle Sirene. Non riesco a descriverlo con parole normali…»","Scrivi cosa pensi della scelta tra Scilla e Cariddi — come si sceglie il male minore?","Racconta come ci si sente ad essere l'unico sopravvissuto su un asse di legno"],
+      pittore:["Disegna Ulisse legato all'albero della nave con il mare agitato intorno","Disegna Scilla con le sue sei teste terrificanti","Disegna il grande gorgo di Cariddi che risucchia tutto"],
+      aedo:["Racconta il canto delle Sirene come se lo stessi sentendo adesso — usa la voce con tono incantevole","Descrivi il momento in cui Zeus colpisce la nave con il fulmine","Racconta la solitudine di Ulisse sull'asse di legno — voce lenta e triste"],
+      cartografo:["Come si protessero i compagni di Ulisse dal canto delle Sirene?","Perché Ulisse scelse di passare vicino a Scilla invece che a Cariddi?","Chi distrusse la nave di Ulisse con un fulmine?"]},
+ quiz:[{q:"Come si protessero i compagni dal canto delle Sirene?",opts:["Si coprirono le orecchie con le mani","Ulisse mise cera nelle loro orecchie","Cantarono più forte","Navigarono velocissimo"],c:1},
+       {q:"Chi distrusse la nave di Ulisse con un fulmine?",opts:["Poseidone","Apollo","Atena","Zeus"],c:3}]
+},
+{id:3,sig:"🏠",dot:"#184030",day:"Giorni 731–1461",luogo:"OGIGIA → ITACA",
+ title:"Calipso. Il ritorno. Casa.",coord:"36°N 22°E — Rotta finale",
+ stampC:"#184030",stamp:"RITORNO",sx:"39%",sy:"70%",sr:"6deg",ss:"0.85",
+ testo:["Calipso mi ha offerto l'immortalità. La vita eterna. Ho rifiutato. Ho passato sette anni sulla sua isola bellissima piangendo ogni mattina guardando il mare verso Itaca. Come si spiega la nostalgia a chi non l'ha mai sentita?",
+        "Gli dèi ordinarono a Calipso di lasciarmi andare. Ho costruito una zattera. I Feaci mi accolsero e ascoltarono tutta la notte. Al mattino mi diedero una nave veloce. Mi addormentai a bordo. Mi svegliai a Itaca. Vent'anni dopo.",
+        "Tornai travestito da vecchio mendicante grazie ad Atena. Solo il mio cane Argo mi riconobbe — aveva aspettato vent'anni. Quando mi vide, scodinzolò e morì. Era come se avesse aspettato solo per quello.",
+        "Con Telemaco sconfissi i Proci alla gara dell'arco. Penelope mi riconobbe grazie al segreto del nostro letto, costruito attorno a un ulivo vivo. Solo io potevo saperlo. Quella parola d'ordine dopo vent'anni."],
+  mf:{
+     nome:"Il Vaso del Ritorno",
+     superpotere:"IL VASO CHE TORNA A CASA",
+     significato:"Ulisse rifiuto l'immortalita per tornare. Questo e l'unico oggetto del progetto che porti a casa. E il tuo ritorno.",
+     tempo:"60 minuti + asciugatura",
+     nota_ins:"Preparare l'impasto prima della sessione. Il forno a 100 gradi lo gestisce l'insegnante. I ragazzi dipingono il giorno dopo.",
+     steps:[
+       "IMPASTA — Mescola: 2 parti farina + 1 parte sale + 1 parte acqua. Impasta 3-4 minuti finche non e liscia. Se appiccica aggiungi farina, se si sbriciola aggiungi acqua a gocce",
+       "MODELLA LA CIOTOLA — Prendi una palla grande come un mandarino. Premi il pollice al centro e allarga i bordi verso l'esterno girando la ciotola. Bordi spessi almeno 5mm",
+       "INCIDI — Prima che si asciughi usa uno stuzzicadenti per incidere sul fianco UNA scena: il cane Argo che aspetta, la nave, l'arco, o Penelope al telaio. Linee semplici e decise",
+       "ASCIUGA — 24 ore all'aria oppure 1 ora in forno a 100 gradi (solo insegnante gestisce il forno). La pasta deve essere dura",
+       "DIPINGI LO SFONDO — Tempera ocra (arancio+giallo+bianco) su tutto il vaso. Asciuga 10 minuti",
+       "DIPINGI I DETTAGLI — Tempera nera per riempire i contorni e aggiungere motivi greci sui bordi: triangoli, onde, meandri",
+       "RITUALE — Sul fondo del vaso scrivi con pennarello permanente: nome + UNA PAROLA che riassume il viaggio. Su un bigliettino scrivi: chi aspetteresti per vent'anni e perche. Mettilo dentro il vaso",
+       "PORTA A CASA — Solo questo oggetto torna con te. E il tuo souvenir del viaggio di Ulisse"
+     ],
+     materiali:"Farina · Sale · Acqua · Stuzzicadenti · Tempere (ocra nero) · Pennelli · Pennarello permanente · Bigliettino"},
+ dom:"Ulisse ha rifiutato l'immortalità per tornare da Penelope. Hai mai rinunciato a qualcosa di grande per qualcosa di più importante?",
+ rifl:["Sì — le persone contano più di tutto","No — l'immortalità avrei accettata","Dipende da cosa ti aspetta a casa","Non capisco perché abbia detto no"],
+ sug:{scriba:["Inizia con: «Quando ho visto le coste di Itaca dopo vent'anni, ho pianto…»","Racconta il momento in cui il cane Argo riconosce Ulisse — usa parole emozionanti","Scrivi il momento in cui Penelope riconosce Ulisse grazie al segreto del letto"],
+      pittore:["Disegna Ulisse seduto sulla riva di Ogigia che guarda il mare verso Itaca","Disegna il vecchio cane Argo che riconosce il suo padrone dopo vent'anni","Disegna la gara dell'arco — solo Ulisse riesce a tenderlo"],
+      aedo:["Racconta perché Ulisse rifiutò l'immortalità — voce commossa","Descrivi la scena del cane Argo — la più triste del viaggio","Racconta il riconoscimento di Penelope — voce di gioia e sollievo"],
+      cartografo:["Come riconobbe Penelope che era davvero Ulisse e non un impostore?","Chi fu il primo essere vivente a riconoscere Ulisse al suo ritorno a Itaca?","Perché Ulisse rifiutò di restare per sempre sull'isola con Calipso?"]},
+ quiz:[{q:"Come riconobbe Penelope che era davvero Ulisse?",opts:["Dalla voce","Dalla cicatrice sul ginocchio","Dal segreto del loro letto","Dal colore degli occhi"],c:2},
+       {q:"Chi fu il primo a riconoscere Ulisse al ritorno?",opts:["Penelope","Telemaco","La nutrice Euriclea","Il cane Argo"],c:3}]
+}
+];
+
+/* ══ STATO ══ */
+let ruolo='',icona='',nomeRuolo='',nomeUtente='';
+let settCorr=0, libro=[], drawColor='#18100a', drawSize=4;
+let drawHistory={}, drawData={};
+let mediaRec=null, recAttivo=false, recInt=null, recSecs=0;
+let audioURL={}, quizFatto={};
+
+try{
+  const d=JSON.parse(localStorage.getItem('gjb6')||'{}');
+  libro=d.libro||[]; drawData=d.dd||{};
+  ruolo=d.r||''; icona=d.i||''; nomeRuolo=d.nr||''; nomeUtente=d.n||'';
+}catch(e){}
+function salva(){try{localStorage.setItem('gjb6',JSON.stringify({libro,dd:drawData,r:ruolo,i:icona,nr:nomeRuolo,n:nomeUtente}));}catch(e){}}
+
+/* ══ NAVIGAZIONE ══ */
+const PROG={'s-cover':0,'s-role':15,'s-lab':50,'s-book':90,'s-print':20,'s-guide':10};
+function vai(id){
+  document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+  window.scrollTo(0,0);
+  document.getElementById('prog').style.width=(PROG[id]||0)+'%';
+  if(id==='s-book') renderLibro();
+  if(id==='s-print') renderSchede();
+  if(id==='s-role'){buildWeekGrid();if(ruolo)document.getElementById('rc-'+ruolo)?.classList.add('sel');}
+}
+
+/* ══ WEEK GRID ══ */
+function buildWeekGrid(){
+  const wg=document.getElementById('week-grid');
+  if(!wg||wg.children.length) return;
+  WEEKS.forEach((w,i)=>{
+    const c=document.createElement('div');c.className='wc'+(i===settCorr?' sel':'');c.id='wc-'+i;
+    c.innerHTML='<div class="wc-check">✓</div><span class="wc-sig">'+w.sig+'</span><div class="wc-num">Settimana '+(i+1)+'</div><div class="wc-title">'+w.title+'</div><div class="wc-caps">'+w.day+'</div>';
+    c.onclick=()=>{settCorr=i;document.querySelectorAll('.wc').forEach(x=>x.classList.remove('sel'));c.classList.add('sel');};
+    wg.appendChild(c);
+  });
+}
+
+/* ══ SCELTA RUOLO ══ */
+function sceglRuolo(r,ico,nome){
+  ruolo=r;icona=ico;nomeRuolo=nome;
+  document.querySelectorAll('.rc').forEach(c=>c.classList.remove('sel'));
+  document.getElementById('rc-'+r).classList.add('sel');
+}
+function avviaLab(){
+  const n=document.getElementById('inp-nome')?.value?.trim();
+  if(!ruolo){msg('Scegli prima il tuo ruolo!');return;}
+  if(!n){msg('Scrivi il tuo nome a bordo!');return;}
+  nomeUtente=n;salva();
+  document.getElementById('tb-role').textContent=icona+' '+nomeRuolo+' — '+nomeUtente;
+  document.getElementById('tb-week').textContent='⚓ '+WEEKS[settCorr].title;
+  costruisciTabs();renderLab(settCorr);vai('s-lab');
+}
+function costruisciTabs(){
+  const wt=document.getElementById('week-tabs');wt.innerHTML='';
+  WEEKS.forEach((w,i)=>{
+    const d=document.createElement('div');d.className='wtab'+(i===settCorr?' sel':'');d.id='wt-'+i;
+    d.textContent=w.sig+' Sett.'+(i+1);
+    d.onclick=()=>cambiaSett(i);wt.appendChild(d);
+  });
+}
+function cambiaSett(i){
+  settCorr=i;
+  document.querySelectorAll('.wtab').forEach((t,j)=>t.classList.toggle('sel',j===i));
+  document.getElementById('tb-week').textContent='⚓ '+WEEKS[i].title;
+  renderLab(i);window.scrollTo(0,64);
+}
+
+/* ══ RENDER LAB ══ */
+function renderLab(wi){
+  const w=WEEKS[wi],body=document.getElementById('lab-body');
+  body.innerHTML='';
+  // progress task indicator
+  const ti=mk('div','task-indicator');
+  const steps=[{l:'Leggi',i:'📖'},{l:ruolo==='pittore'?'Disegna':'Scrivi',i:icona},{l:'Rifletti',i:'💬'},{l:'Pubblica',i:'⚓'}];
+  steps.forEach((s,idx)=>{
+    if(idx>0){const line=mk('div','ti-line');ti.appendChild(line);}
+    const step=mk('div','ti-step');
+    const circle=mk('div','ti-circle');circle.textContent=s.i;
+    step.appendChild(circle);
+    ti.appendChild(step);
+  });
+  body.appendChild(ti);
+  // torn top
+  body.appendChild(mk('div','torn-t'));
+  // parchment
+  const p=mk('div','parchment');
+  p.style.cssText='--sx:'+w.sx+';--sy:'+w.sy+';--sr:'+w.sr+';--ss:'+w.ss;
+  // stamp
+  const stamp=mk('div','stamp');stamp.style.color=w.stampC+'99';stamp.style.borderColor=w.stampC+'55';stamp.textContent=w.stamp;p.appendChild(stamp);
+  // header
+  const hdr=mk('div');hdr.innerHTML='<div class="p-day">'+w.day+'</div><div class="p-title" style="color:'+w.stampC+'">'+w.title+'</div><div class="p-coord">'+w.coord+'</div>';p.appendChild(hdr);
+  // testo Ulisse con righine
+  const utWrap=mk('div','ruled');const ut=mk('div','utext');
+  w.testo.forEach(t=>{const pp=mk('p');pp.textContent=t;ut.appendChild(pp);});
+  utWrap.appendChild(ut);p.appendChild(utWrap);
+  p.appendChild(divLine());
+  // manufatto fisico
+  p.appendChild(buildMF(w));
+  // sezione ruolo
+  p.appendChild(buildRoleSection(wi));
+  p.appendChild(divLine());
+  // riflessione
+  p.appendChild(buildRifl(w));
+  // pubblica
+  p.appendChild(buildPubblica(wi));
+  body.appendChild(p);
+  body.appendChild(mk('div','torn-b'));
+  if(ruolo==='pittore') setTimeout(()=>initCanvas(wi),120);
+}
+
+function mk(tag,cls){const e=document.createElement(tag);if(cls)e.className=cls;return e;}
+function divLine(){return mk('div','divider');}
+
+/* ── MANIFATTO ── */
+function buildMF(w){
+  const wrap=mk('div');
+  // superpotere
+  const sp=mk('div');
+  sp.style.cssText='background:linear-gradient(135deg,rgba(180,130,40,.18),rgba(180,130,40,.06));border:1.5px solid rgba(180,130,40,.4);border-radius:5px;padding:.9rem 1rem;margin-bottom:.75rem';
+  const spTop=mk('div');spTop.style.cssText='display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem';
+  const spIco=mk('span');spIco.style.cssText='font-size:18px';spIco.textContent='\u26a1';spTop.appendChild(spIco);
+  const spLbl=mk('div');spLbl.style.cssText='font-family:var(--fm);font-size:9px;letter-spacing:3px;color:var(--g2);text-transform:uppercase';spLbl.textContent='SUPERPOTERE';spTop.appendChild(spLbl);
+  if(w.mf.tempo){const t=mk('div');t.style.cssText='margin-left:auto;font-family:var(--fm);font-size:9px;color:var(--d1);letter-spacing:.5px;background:rgba(180,130,40,.12);padding:2px 8px;border-radius:10px';t.textContent='Tempo: '+w.mf.tempo;spTop.appendChild(t);}
+  sp.appendChild(spTop);
+  const spTitle=mk('div');spTitle.style.cssText='font-family:var(--ft);font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.25rem';spTitle.textContent=w.mf.superpotere||'';sp.appendChild(spTitle);
+  const spText=mk('div');spText.style.cssText='font-size:13px;color:rgba(24,16,8,.72);line-height:1.55;font-style:italic';spText.textContent=w.mf.significato||'';sp.appendChild(spText);
+  wrap.appendChild(sp);
+  if(w.mf.nota_ins){
+    const ni=mk('div');
+    ni.style.cssText='background:rgba(20,60,160,.08);border:1px solid rgba(20,60,160,.2);border-radius:4px;padding:.6rem .85rem;margin-bottom:.75rem';
+    const niL=mk('div');niL.style.cssText='font-family:var(--fm);font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(20,60,160,.7);margin-bottom:.25rem';niL.textContent='NOTA PER L\u2019INSEGNANTE';
+    const niT=mk('div');niT.style.cssText='font-size:12.5px;color:rgba(20,40,100,.85);line-height:1.55';niT.textContent=w.mf.nota_ins;
+    ni.appendChild(niL);ni.appendChild(niT);wrap.appendChild(ni);
+  }
+  const mf=mk('div','mf-card');
+  const ico=mk('div','mf-icon');ico.textContent='\ud83d\udd90\ufe0f';mf.appendChild(ico);
+  const body=mk('div','mf-body');
+  const lbl=mk('div','mf-label');lbl.textContent='Istruzioni passo-passo';body.appendChild(lbl);
+  const nome=mk('div','mf-name');nome.textContent=w.mf.nome;body.appendChild(nome);
+  const mat=mk('div');mat.style.cssText='font-size:11px;color:rgba(24,16,8,.48);font-family:var(--fm);margin-bottom:.55rem;letter-spacing:.5px;line-height:1.5';mat.textContent='Materiali: '+w.mf.materiali;body.appendChild(mat);
+  const ul=mk('ul','mf-steps');
+  w.mf.steps.forEach(s=>{
+    const li=mk('li');
+    if(s.startsWith('RITUALE')){li.style.cssText='background:rgba(180,130,40,.1);border-left:3px solid var(--g1);padding:.4rem .5rem;border-radius:0 3px 3px 0;font-style:italic;color:rgba(24,16,8,.88);margin:.4rem 0';}
+    else if(/^[A-Z]{2,}.*? \u2014/.test(s)||/^[A-Z]{2,}.*? -/.test(s)){li.style.cssText='font-weight:700;color:rgba(24,16,8,.92)';}
+    li.textContent=s;ul.appendChild(li);
+  });
+  body.appendChild(ul);mf.appendChild(body);wrap.appendChild(mf);return wrap;
+}
+function buildRoleSection(wi){
+  const w=WEEKS[wi];
+  const wrap=mk('div','role-section');
+  // header collassabile
+  const hdr=mk('div','rs-hdr');
+  const ico=mk('div','rs-icon');ico.textContent=icona;hdr.appendChild(ico);
+  const info=mk('div','rs-info');
+  const t1=mk('div','rs-title');t1.textContent='Il tuo compito — '+nomeRuolo;info.appendChild(t1);
+  const t2=mk('div','rs-desc');
+  t2.textContent={scriba:'Racconta l\'episodio con le tue parole',pittore:'Illustra la scena a mano libera',aedo:'Registra la tua voce che narra',cartografo:'Crea 2 domande per i compagni'}[ruolo]||'';
+  info.appendChild(t2);hdr.appendChild(info);
+  const mine=mk('div','rs-mine');mine.textContent='⭐ Il tuo compito';hdr.appendChild(mine);
+  wrap.appendChild(hdr);
+  const body=mk('div','rs-body open');
+  buildRoleBody(wi,body);
+  wrap.appendChild(body);
+  return wrap;
+}
+
+function buildRoleBody(wi,body){
+  const w=WEEKS[wi];
+  const hints=w.sug[ruolo]||[];
+  const saved=libro.find(p=>p.weekId===wi&&p.autore===nomeUtente&&p.ruolo===ruolo);
+
+  // Istruzioni guidate
+  const gsteps=mk('div','guide-steps');
+  const guides={
+    scriba:["Leggi il testo di Ulisse qui sopra","Riscrivi l'episodio con le tue parole — anche solo 4 righe vanno bene","Non copiare: usa le parole che useresti con un amico"],
+    pittore:["Scegli il colore dell'inchiostro dalla palette","Disegna con il dito o il mouse sul foglio pergamena","Puoi usare il bianco come gomma per correggere"],
+    aedo:["Premi il pulsante rosso per iniziare a registrare","Racconta l'episodio con la tua voce — massimo 60 secondi","Premi di nuovo per fermare — poi ascolta e decidi se va bene"],
+    cartografo:["Modifica le due domande già pronte (o scrivile da zero)","Per ogni domanda segna quale risposta è quella giusta","Le domande devono essere chiare per chi non ha studiato ancora"]
+  };
+  (guides[ruolo]||[]).forEach((g,i)=>{
+    const gs=mk('div','gs');
+    const gn=mk('div','gs-n');gn.textContent=i+1;gs.appendChild(gn);
+    const gt=mk('div','gs-text');gt.textContent=g;gs.appendChild(gt);
+    gsteps.appendChild(gs);
+  });
+  body.appendChild(gsteps);
+
+  if(ruolo==='scriba'){
+    const lbl=mk('label','pi-label');lbl.textContent='✒️ il tuo racconto';body.appendChild(lbl);
+    const ta=mk('textarea','pi');ta.id='pi-s-'+wi;ta.rows=6;
+    ta.placeholder='Scrivi qui il tuo racconto...\n\nEsempio: «Era notte fonda quando...»';
+    ta.value=saved?.testo||'';
+    ta.addEventListener('input',function(){this.style.height='auto';this.style.height=this.scrollHeight+'px';});
+    body.appendChild(ta);
+  }
+  else if(ruolo==='pittore'){
+    // palette
+    const pr=mk('div','palette-row');
+    const lc=mk('span','pal-lbl');lc.textContent='Colore:';pr.appendChild(lc);
+    [['#18100a','Nero seppia'],['#5a2e08','Marrone'],['#1a3a08','Verde'],['#08183a','Blu notte'],['#5a0808','Rosso'],['#7a5808','Ocra'],['#ecdbb0','Bianco (gomma)']].forEach(([c,n],ci)=>{
+      const d=mk('div','pcol'+(ci===0?' sel':''));
+      const sz=ci===6?16:20;d.style.cssText='background:'+c+';width:'+sz+'px;height:'+sz+'px;'+( ci===6?'border:1.5px solid rgba(110,70,20,.45);border-radius:4px!important;':'');
+      d.title=n;d.onclick=()=>{drawColor=c;document.querySelectorAll('.pcol').forEach(e=>e.classList.remove('sel'));d.classList.add('sel');};
+      pr.appendChild(d);
+    });
+    const ls=mk('span','pal-lbl');ls.style.marginLeft='.35rem';ls.textContent='Spessore:';pr.appendChild(ls);
+    [[2,10],[4,14],[8,18],[14,22]].forEach(([s,px],si)=>{
+      const d=mk('div','psiz'+(si===1?' sel':''));
+      d.style.cssText='width:'+px+'px;height:'+px+'px;opacity:'+(si===1?1:.45)+';';
+      d.onclick=()=>{drawSize=s;document.querySelectorAll('.psiz').forEach(e=>e.classList.remove('sel'));d.classList.add('sel');};
+      pr.appendChild(d);
+    });
+    body.appendChild(pr);
+    const cv=mk('canvas','draw-canvas');cv.id='cv-'+wi;cv.height=260;body.appendChild(cv);
+    const btns=mk('div','draw-btns');
+    const bu=mk('button','draw-btn');bu.textContent='↩ Annulla';bu.onclick=()=>undoDraw(wi);
+    const bc=mk('button','draw-btn');bc.textContent='✕ Cancella tutto';bc.onclick=()=>clearDraw(wi);
+    btns.appendChild(bu);btns.appendChild(bc);body.appendChild(btns);
+    const note=mk('div','draw-note');note.textContent='Disegna con il dito o il mouse · Bianco = gomma per correggere';body.appendChild(note);
+  }
+  else if(ruolo==='aedo'){
+    const az=mk('div','audio-area');
+    const rs=mk('div','rec-stat');rs.id='rs';rs.textContent='Premi il pulsante rosso per iniziare';az.appendChild(rs);
+    const rr=mk('div','rec-ring');rr.id='rr';rr.textContent='🎙';rr.onclick=()=>toggleRec(wi);az.appendChild(rr);
+    const rt=mk('div','rec-t');rt.id='rt';az.appendChild(rt);
+    const rp=mk('div');rp.id='rp';az.appendChild(rp);
+    const hint=mk('div');hint.style.cssText='font-size:12px;color:rgba(40,24,8,.42);font-style:italic;margin-top:.4rem;line-height:1.6;max-width:300px;margin-left:auto;margin-right:auto';
+    hint.textContent='Racconta come un antico cantastorie greco — voce chiara e lenta';
+    az.appendChild(hint);body.appendChild(az);
+  }
+  else if(ruolo==='cartografo'){
+    const saved2=libro.find(p=>p.weekId===wi&&p.autore===nomeUtente&&p.ruolo==='cartografo');
+    [0,1].forEach(qi=>{
+      const qb=mk('div','qb');
+      const qn=mk('div','qb-num');qn.textContent='Domanda '+(qi+1)+' di 2';qb.appendChild(qn);
+      const qta=mk('textarea','pi');qta.id='qq-'+wi+'-'+qi;qta.rows=2;qta.style.minHeight='44px';
+      qta.placeholder='Scrivi la domanda '+(qi+1)+'...';
+      qta.value=saved2?.quizQ?.[qi]||w.quiz[qi].q;
+      qb.appendChild(qta);
+      ['A','B','C','D'].forEach((_,oi)=>{
+        const row=mk('div','opt-row');
+        const ol=mk('div','opt-l');ol.textContent='ABCD'[oi];
+        const oi2=mk('input','opt-i');oi2.id='qo-'+wi+'-'+qi+'-'+oi;
+        oi2.placeholder='Risposta '+'ABCD'[oi]+'...';
+        oi2.value=saved2?.quizOpts?.[qi]?.[oi]||w.quiz[qi].opts[oi];
+        row.appendChild(ol);row.appendChild(oi2);qb.appendChild(row);
+      });
+      const cr=mk('div','cor-row');
+      const crl=mk('span','cor-lbl');crl.textContent='Giusta:';cr.appendChild(crl);
+      const sc=saved2?.quizC?.[qi]??w.quiz[qi].c;
+      ['A','B','C','D'].forEach((_,oi)=>{
+        const cb=mk('button','cor-btn'+(sc===oi?' sel':''));cb.id='cor-'+wi+'-'+qi+'-'+oi;
+        cb.textContent='ABCD'[oi];
+        cb.onclick=()=>{for(let j=0;j<4;j++){document.getElementById('cor-'+wi+'-'+qi+'-'+j)?.classList.remove('sel');}cb.classList.add('sel');};
+        cr.appendChild(cb);
+      });
+      qb.appendChild(cr);body.appendChild(qb);
+    });
+  }
+
+  // suggerimenti
+  if(hints.length){
+    const sb=mk('div','sug-box');
+    const st=mk('div','sug-title');st.textContent='💡 Suggerimenti — scegli quello che ti aiuta';sb.appendChild(st);
+    const chips=mk('div','sug-chips');
+    const outs=[];
+    hints.forEach((h,i)=>{
+      const btn=mk('button','sug-chip');btn.textContent='Idea '+(i+1);
+      const out=mk('div','sug-out');out.id='so-'+wi+'-'+i;out.textContent=h;
+      btn.onclick=()=>{outs.forEach(o=>o.classList.remove('on'));out.classList.add('on');};
+      chips.appendChild(btn);outs.push(out);
+    });
+    sb.appendChild(chips);outs.forEach(o=>sb.appendChild(o));body.appendChild(sb);
+  }
+}
+
+/* ── RIFLESSIONE ── */
+function buildRifl(w){
+  const r=mk('div','rifl');
+  const lbl=mk('div','rifl-lbl');lbl.textContent='💬 riflessione per la classe';r.appendChild(lbl);
+  const q=mk('div','rifl-q');q.textContent=w.dom;r.appendChild(q);
+  const opts=mk('div','rifl-opts');
+  w.rifl.forEach(text=>{
+    const o=mk('div','rifl-opt');o.textContent=text;o.onclick=()=>{opts.querySelectorAll('.rifl-opt').forEach(x=>x.classList.remove('sel'));o.classList.add('sel');};
+    opts.appendChild(o);
+  });
+  r.appendChild(opts);return r;
+}
+
+/* ── PUBBLICA ── */
+function buildPubblica(wi){
+  const wrap=mk('div','pub-wrap');
+  // checklist
+  const cl=mk('div','pub-checklist');
+  const items=[
+    {id:'ck-testo',label:{scriba:'Hai scritto il racconto?',pittore:'Hai disegnato la scena?',aedo:'Hai registrato la voce?',cartografo:'Hai scritto le domande?'}[ruolo]||'Hai completato il tuo compito?'},
+    {id:'ck-rifl',label:'Hai risposto alla domanda di riflessione?'},
+    {id:'ck-pronto',label:'Sei pronto a pubblicare nel libro della classe?'}
+  ];
+  items.forEach(item=>{
+    const ch=mk('div','pub-check');ch.id=item.id;
+    const ck=mk('div','ck');ck.textContent='✓';ch.appendChild(ck);
+    const lbl=mk('span');lbl.textContent=item.label;ch.appendChild(lbl);
+    cl.appendChild(ch);
+  });
+  wrap.appendChild(cl);
+  const btn=mk('button','pub-btn');btn.textContent='⚓ Pubblica nel libro della classe';
+  btn.onclick=()=>pubblica(wi);wrap.appendChild(btn);
+  return wrap;
+}
+
+/* ══ CANVAS ══ */
+function initCanvas(wi){
+  const cv=document.getElementById('cv-'+wi);
+  if(!cv||cv._ok)return;cv._ok=true;
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const W=cv.offsetWidth||320;
+  cv.width=W*dpr;cv.height=260*dpr;cv.style.width=W+'px';cv.style.height='260px';
+  const ctx=cv.getContext('2d');ctx.scale(dpr,dpr);
+  ctx.fillStyle='#ecdbb0';ctx.fillRect(0,0,W,260);
+  if(drawData[wi]){const img=new Image();img.onload=()=>ctx.drawImage(img,0,0,W,260);img.src=drawData[wi];}
+  drawHistory[wi]=[ctx.getImageData(0,0,cv.width,cv.height)];
+  let on=false,lx=0,ly=0;
+  function pt(ev){const r=cv.getBoundingClientRect();const src=ev.touches?ev.touches[0]:ev;return{x:(src.clientX-r.left)*dpr,y:(src.clientY-r.top)*dpr};}
+  function dn(ev){ev.preventDefault();on=true;const p=pt(ev);lx=p.x/dpr;ly=p.y/dpr;drawHistory[wi].push(ctx.getImageData(0,0,cv.width,cv.height));if(drawHistory[wi].length>60)drawHistory[wi].shift();ctx.beginPath();ctx.arc(lx,ly,drawSize/2,0,Math.PI*2);ctx.fillStyle=drawColor;ctx.fill();}
+  function mv(ev){if(!on)return;ev.preventDefault();const p=pt(ev);ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(p.x/dpr,p.y/dpr);ctx.strokeStyle=drawColor;ctx.lineWidth=drawSize;ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke();lx=p.x/dpr;ly=p.y/dpr;}
+  function up(){on=false;}
+  cv.addEventListener('mousedown',dn);cv.addEventListener('mousemove',mv);
+  cv.addEventListener('mouseup',up);cv.addEventListener('mouseleave',up);
+  cv.addEventListener('touchstart',dn,{passive:false});cv.addEventListener('touchmove',mv,{passive:false});
+  cv.addEventListener('touchend',up);
+}
+function undoDraw(wi){const cv=document.getElementById('cv-'+wi);if(!cv)return;const h=drawHistory[wi]||[];if(h.length>1){h.pop();cv.getContext('2d').putImageData(h[h.length-1],0,0);}}
+function clearDraw(wi){const cv=document.getElementById('cv-'+wi);if(!cv)return;const dpr=Math.min(window.devicePixelRatio||1,2);const ctx=cv.getContext('2d');ctx.fillStyle='#ecdbb0';ctx.fillRect(0,0,cv.width/dpr,cv.height/dpr);drawHistory[wi]=[ctx.getImageData(0,0,cv.width,cv.height)];}
+
+/* ══ AUDIO ══ */
+async function toggleRec(wi){
+  if(recAttivo){fermaRec();return;}
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    const chunks=[];mediaRec=new MediaRecorder(stream);
+    mediaRec.ondataavailable=e=>chunks.push(e.data);
+    mediaRec.onstop=()=>{
+      const url=URL.createObjectURL(new Blob(chunks,{type:'audio/webm'}));audioURL[wi]=url;
+      const rp=document.getElementById('rp');if(rp){const a=document.createElement('audio');a.controls=true;a.src=url;rp.innerHTML='';rp.appendChild(a);}
+      const rr=document.getElementById('rr');if(rr){rr.className='rec-ring ok';rr.textContent='✓';}
+      const rs=document.getElementById('rs');if(rs)rs.textContent='Registrazione salvata! Premi ✓ per riascoltare';
+      stream.getTracks().forEach(t=>t.stop());
+      document.getElementById('ck-testo')?.classList.add('done');
+    };
+    mediaRec.start();recAttivo=true;recSecs=0;
+    document.getElementById('rr').className='rec-ring rec';document.getElementById('rr').textContent='⏹';
+    document.getElementById('rs').textContent='Sto registrando — parla!';
+    recInt=setInterval(()=>{recSecs++;const m=Math.floor(recSecs/60),s=recSecs%60;const rt=document.getElementById('rt');if(rt)rt.textContent=m+':'+(s<10?'0':'')+s;if(recSecs>=90){fermaRec();}},1000);
+  }catch(e){msg('Microfono non disponibile — controlla le autorizzazioni');}
+}
+function fermaRec(){if(mediaRec&&mediaRec.state!=='inactive')mediaRec.stop();recAttivo=false;clearInterval(recInt);const rt=document.getElementById('rt');if(rt)rt.textContent='';}
+
+/* ══ PUBBLICA ══ */
+function pubblica(wi){
+  const w=WEEKS[wi];
+  const dati={id:Date.now(),weekId:wi,weekTitle:w.title,weekDay:w.day,weekSig:w.sig,weekC:w.stampC,weekDot:w.dot,ruolo,icona,nomeRuolo,autore:nomeUtente,dom:w.dom};
+  if(ruolo==='scriba'){const t=document.getElementById('pi-s-'+wi)?.value?.trim();if(!t||t.length<10){msg('Scrivi almeno qualche riga prima di pubblicare!');return;}dati.testo=t;}
+  else if(ruolo==='pittore'){const cv=document.getElementById('cv-'+wi);if(!cv){msg('Disegna qualcosa prima!');return;}const url=cv.toDataURL('image/png');drawData[wi]=url;salva();dati.disegno=url;}
+  else if(ruolo==='aedo'){dati.audioUrl=audioURL[wi]||null;}
+  else if(ruolo==='cartografo'){
+    dati.quizQ=[0,1].map(qi=>document.getElementById('qq-'+wi+'-'+qi)?.value||w.quiz[qi].q);
+    dati.quizOpts=[0,1].map(qi=>['A','B','C','D'].map((_,oi)=>document.getElementById('qo-'+wi+'-'+qi+'-'+oi)?.value||w.quiz[qi].opts[oi]));
+    dati.quizC=[0,1].map(qi=>{for(let oi=0;oi<4;oi++){if(document.getElementById('cor-'+wi+'-'+qi+'-'+oi)?.classList.contains('sel'))return oi;}return w.quiz[qi].c;});
+  }
+  const idx=libro.findIndex(p=>p.weekId===wi&&p.autore===nomeUtente&&p.ruolo===ruolo);
+  if(idx>-1)libro[idx]=Object.assign({},libro[idx],dati);else libro.push(dati);
+  salva();
+  // aggiorna checklist
+  document.getElementById('ck-testo')?.classList.add('done');
+  document.getElementById('ck-pronto')?.classList.add('done');
+  msg('⚓ Pubblicato nel libro della classe!');
+  setTimeout(()=>vai('s-book'),900);
+}
+
+/* ══ LIBRO ══ */
+function renderLibro(){
+  const el=document.getElementById('book-pages');
+  const total=libro.length;
+  // stats
+  const stats=document.getElementById('book-stats');
+  stats.innerHTML=[
+    {n:WEEKS.filter(w=>libro.some(p=>p.weekId===w.id)).length,l:'Settimane'},
+    {n:[...new Set(libro.map(p=>p.autore))].length,l:'Autori'},
+    {n:libro.filter(p=>p.testo).length,l:'Racconti'},
+    {n:libro.filter(p=>p.disegno).length,l:'Disegni'},
+  ].map(s=>'<div class="bs"><div class="bs-n">'+s.n+'</div><div class="bs-l">'+s.l+'</div></div>').join('');
+
+  if(!total){el.innerHTML='<div class="empty-book"><span class="empty-ico">📭</span><div class="empty-txt">Il libro è ancora vuoto.<br>Costruite le prime pagine nel laboratorio!</div></div>';return;}
+
+  const byW={};libro.forEach(p=>{if(!byW[p.weekId])byW[p.weekId]=[];byW[p.weekId].push(p);});
+  el.innerHTML=Object.entries(byW).sort(([a],[b])=>+a-+b).map(([wi,pgs])=>{
+    const w=WEEKS[+wi];
+    const scr=pgs.find(p=>p.ruolo==='scriba'),pit=pgs.find(p=>p.ruolo==='pittore');
+    const aed=pgs.find(p=>p.ruolo==='aedo'),car=pgs.find(p=>p.ruolo==='cartografo');
+    const authors=pgs.map(p=>'<span class="bc-auth">'+p.icona+' '+p.autore+'</span>').join('');
+    const pills=[scr&&'<span class="pill pt">✒️ testo</span>',pit&&'<span class="pill pd">🖌️ disegno</span>',aed&&'<span class="pill pa">📣 voce</span>',car&&'<span class="pill pq">🗺️ quiz</span>'].filter(Boolean).join('');
+    const drawingHtml=pit?.disegno?'<div class="bc-drawing-wrap"><img class="bc-drawing" src="'+pit.disegno+'" alt="Disegno di '+pit.autore+'"></div>':'';
+    const preview=scr?.testo?scr.testo.slice(0,90)+'…':'Clicca per aprire la pagina completa';
+    return '<div class="book-card" onclick="apriPagina('+wi+')">'
+      +'<div class="bc-tt"></div>'
+      +'<div class="bc-body">'
+      +'<div class="bc-week-badge"><div class="bc-week-dot" style="background:'+w.dot+'"></div>'+w.sig+' '+w.day+'</div>'
+      +'<div class="bc-title" style="color:'+w.stampC+'">'+w.title+'</div>'
+      +'<div class="bc-authors">'+authors+'</div>'
+      +drawingHtml
+      +'<div class="bc-pills">'+pills+'</div>'
+      +'<div class="bc-text-preview">'+preview+'</div>'
+      +'</div>'
+      +'<div class="bc-tb"></div>'
+      +'</div>';
+  }).join('');
+}
+
+/* ══ PAGINA COMPLETA ══ */
+function apriPagina(wi){
+  const pgs=libro.filter(p=>p.weekId==wi);if(!pgs.length)return;
+  const w=WEEKS[wi];
+  const scr=pgs.find(p=>p.ruolo==='scriba'),pit=pgs.find(p=>p.ruolo==='pittore');
+  const aed=pgs.find(p=>p.ruolo==='aedo'),car=pgs.find(p=>p.ruolo==='cartografo');
+  const qQ=car?.quizQ||w.quiz.map(q=>q.q);
+  const qO=car?.quizOpts||w.quiz.map(q=>q.opts);
+  const qC=car?.quizC||w.quiz.map(q=>q.c);
+  const uid='u'+Date.now();
+  const inner=document.getElementById('modal-inner');
+
+  let html='<button class="sh-close" onclick="chiudiModal()">✕</button>'
+    +'<div class="sh-week">'+w.sig+' '+w.day+'</div>'
+    +'<div class="sh-title" style="color:'+w.stampC+'">'+w.title+'</div>'
+    +'<div class="bc-authors" style="margin-bottom:.8rem">'+pgs.map(p=>'<span class="bc-auth">'+p.icona+' '+p.autore+' — '+p.nomeRuolo+'</span>').join('')+'</div>';
+
+  if(pit?.disegno){
+    html+='<div class="sh-section-lbl">🖌️ Illustrazione — '+pit.autore+'</div>'
+      +'<div class="sh-drawing-wrap"><img class="sh-drawing" src="'+pit.disegno+'" alt="Disegno di '+pit.autore+'"></div>';
+  }
+  if(scr?.testo){
+    html+='<div class="sh-section-lbl">✒️ Racconto — '+scr.autore+'</div>'
+      +'<div class="sh-text ruled" style="background-color:rgba(228,195,115,.13);padding:.72rem .88rem">'+scr.testo+'</div>';
+  }
+  if(aed?.audioUrl){
+    html+='<div class="sh-section-lbl">📣 Voce — '+aed.autore+'</div>'
+      +'<audio controls src="'+aed.audioUrl+'" style="width:100%;filter:sepia(.4);margin-bottom:.75rem"></audio>';
+  }
+  html+='<div class="sh-section-lbl" style="margin-top:.25rem">💬 Riflessione</div>'
+    +'<div class="sh-q">'+w.dom+'</div>';
+  if(car){
+    html+='<div class="sh-section-lbl">🗺️ Quiz — '+car.autore+'</div>';
+    [0,1].forEach(qi=>{
+      html+='<div class="sh-quiz-q">'+(qi+1)+'. '+qQ[qi]+'</div>';
+      qO[qi].forEach((o,oi)=>{
+        html+='<div class="sh-opt" id="'+uid+'-'+qi+'-'+oi+'" onclick="rispondi(\''+uid+'\','+qi+','+oi+','+qC[qi]+')">'
+          +'<span class="sh-ol">'+'ABCD'[oi]+'</span>'+o+'</div>';
+      });
+    });
+  }
+  inner.innerHTML=html;
+  document.getElementById('modal-ov').classList.add('on');
+}
+function rispondi(uid,qi,sc,giusto){
+  const k=uid+'_'+qi;if(quizFatto[k])return;quizFatto[k]=true;
+  document.querySelectorAll('[id^="'+uid+'-'+qi+'-"]').forEach((el,oi)=>{
+    el.classList.add('done');if(oi===giusto)el.classList.add('ok');else if(oi===sc)el.classList.add('no');
+  });
+}
+function chiudiModal(){document.getElementById('modal-ov').classList.remove('on');}
+
+/* ══ SCHEDE STAMPABILI ══ */
+function renderSchede(){
+  const grid=document.getElementById('print-grid');
+  if(grid.children.length) return;
+  const roles=[
+    {r:'scriba',i:'✒️',n:'Il Capitano',desc:'Scrive il racconto'},
+    {r:'pittore',i:'🖌️',n:'Il Pittore',desc:'Illustra a mano libera'},
+    {r:'aedo',i:'📣',n:"L'Aedo",desc:'Registra la voce'},
+    {r:'cartografo',i:'🗺️',n:'Il Cartografo',desc:'Crea il quiz'}
+  ];
+  WEEKS.forEach((w,wi)=>{
+    roles.forEach(rol=>{
+      const card=mk('div','print-card');
+      const hdr=mk('div','pc-header');
+      const ico=mk('div','pc-icon');ico.textContent=rol.i;hdr.appendChild(ico);
+      const inf=mk('div','pc-info');
+      const rn=mk('div','pc-role');rn.textContent=rol.n+' — Settimana '+(wi+1);inf.appendChild(rn);
+      const wn=mk('div','pc-week');wn.textContent=w.sig+' '+w.title;inf.appendChild(wn);
+      hdr.appendChild(inf);card.appendChild(hdr);
+      const desc=mk('div','pc-desc');
+      // contenuto specifico per ruolo
+      const content={
+        scriba:"📖 Leggi il testo · ✒️ Racconta con le tue parole · 💡 Prendi appunti su cosa ti ha colpito",
+        pittore:"🖌️ Disegna la scena piu importante · 🎨 Matite o tempere su foglio A4",
+        aedo:"📣 Leggi il testo · 🎙️ Registra la voce (max 60 sec) · Parla lentamente e con espressione",
+        cartografo:"🗺️ Inventa 2 domande · ✅ Segna la risposta giusta · Le domande devono essere chiare"
+      };
+      desc.textContent=content[rol.r]||'';card.appendChild(desc);
+      // materiali
+      const mat=mk('div');mat.style.cssText='font-size:11px;color:rgba(180,130,40,.6);margin-top:.35rem;font-family:var(--fm);letter-spacing:.5px';
+      mat.textContent='🖐️ Manufatto: '+w.mf.nome+' — '+w.mf.materiali;card.appendChild(mat);
+      const btn=mk('button','pc-btn');btn.textContent='🖨️ Stampa questa scheda';
+      btn.onclick=()=>stampaScheda(wi,rol);card.appendChild(btn);
+      grid.appendChild(card);
+    });
+  });
+}
+
+function stampaScheda(wi,rol){
+  const w=WEEKS[wi];
+  const win=window.open('','_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${rol.n} — Settimana ${wi+1}</title>
+  <style>body{font-family:Georgia,serif;max-width:18cm;margin:2cm auto;color:#18100a}
+  h1{font-size:22pt;color:#b8820a;border-bottom:2pt solid #b8820a;padding-bottom:6pt;margin-bottom:12pt}
+  h2{font-size:14pt;color:#7a6030;margin:16pt 0 6pt}
+  .box{background:#f4e8cc;border:1pt solid #b8820a;padding:10pt;margin:8pt 0;border-radius:3pt}
+  .step{display:flex;gap:8pt;padding:5pt 0;border-bottom:1pt solid rgba(110,70,20,.15)}
+  .step:last-child{border-bottom:none}
+  .sn{width:20pt;height:20pt;border-radius:50%;background:#b8820a;color:#f4e8cc;display:flex;align-items:center;justify-content:center;font-size:10pt;font-weight:700;flex-shrink:0}
+  .spazio{border:1pt dashed #b8820a;height:8cm;margin:8pt 0;background:#fffdf5}
+  .spazio-lbl{font-size:9pt;color:rgba(110,70,20,.5);padding:6pt;font-style:italic}
+  @media print{body{margin:.5cm}}
+  </style></head><body>
+  <div style="display:flex;align-items:center;gap:12pt;margin-bottom:8pt">
+    <span style="font-size:36pt">${rol.i}</span>
+    <div><div style="font-size:10pt;color:#7a6030;letter-spacing:2pt;text-transform:uppercase">Settimana ${wi+1}</div>
+    <h1 style="margin:0;border:none;padding:0">${rol.n}</h1>
+    <div style="font-size:11pt;color:#7a6030;font-style:italic">${w.sig} ${w.title}</div></div>
+  </div>
+  <div style="background:#7a1808;color:#f4e8cc;padding:6pt 10pt;font-size:9pt;letter-spacing:2pt;text-transform:uppercase;margin-bottom:12pt">${w.day} · ${w.luogo}</div>
+  
+  <h2>📖 Il testo di Ulisse (leggilo prima di iniziare)</h2>
+  <div class="box">${w.testo.map(t=>'<p style="margin:0 0 6pt">'+t+'</p>').join('')}</div>
+  
+  <h2>${rol.i} Il tuo compito — ${rol.n}</h2>
+  ${{
+    scriba:'<p>Racconta l\'episodio con <strong>le tue parole</strong>. Non copiare — scrivi come lo racconteresti a un amico.</p>',
+    pittore:'<p>Illustra la scena più importante di questo episodio. Puoi usare matite, pennarelli o tempere.</p>',
+    aedo:'<p>Prepara il tuo racconto orale. Leggi il testo, poi racconta a voce senza leggere (max 60 secondi).</p>',
+    cartografo:'<p>Inventa 2 domande con 4 risposte ciascuna. Segna con ✓ la risposta giusta.</p>'
+  }[rol.r]}
+  
+  <h2>⚡ Superpotere dell'oggetto</h2>
+  <div class="box" style="border-color:#b8820a;background:#fff8e8">
+    <div style="font-size:9pt;letter-spacing:2pt;color:#b8820a;text-transform:uppercase;margin-bottom:6pt">${w.mf.superpotere||''}</div>
+    <div style="font-style:italic;color:#5a3808">${w.mf.significato||''}</div>
+  </div>
+  <h2>🖐️ Come si costruisce — ${w.mf.nome}</h2>
+  <div class="box"><em style="font-size:10pt;color:#7a6030">Materiali: ${w.mf.materiali}</em>
+  <div style="margin-top:8pt">${w.mf.steps.map((s,i)=>'<div class="step"><div class="sn">'+(i+1)+'</div><div>'+s+'</div></div>').join('')}</div></div>
+  
+  <div class="spazio"><div class="spazio-lbl">${{scriba:'Scrivi il tuo racconto qui...',pittore:'Disegna la tua illustrazione qui...',aedo:'Scrivi le note per il tuo racconto orale...',cartografo:'Scrivi le tue 2 domande con le 4 risposte qui...'}[rol.r]}</div></div>
+  
+  <h2>💬 Domanda di riflessione</h2>
+  <div class="box" style="font-style:italic">${w.dom}</div>
+  
+  <div style="margin-top:16pt;border-top:1pt solid rgba(110,70,20,.3);padding-top:8pt;font-size:9pt;color:rgba(110,70,20,.5);text-align:center">
+    Nome: _________________________ &nbsp;&nbsp; Classe: _______ &nbsp;&nbsp; Data: _____________
+  </div>
+  </body></html>`);
+  win.document.close();
+  setTimeout(()=>win.print(),400);
+}
+
+
+/* ══ GUIDA ══ */
+function switchGuide(n){
+  for(let i=0;i<4;i++){
+    document.getElementById('gt-'+i)?.classList.toggle('sel',i===n);
+    document.getElementById('gp-'+i)?.classList.toggle('on',i===n);
+  }
+}
+
+
+/* ══ SALVATAGGIO SESSIONE ══ */
+function salvaSessione(){
+  const data={
+    v:3,
+    ts:new Date().toISOString(),
+    ruolo,icona,nomeRuolo,nomeUtente,
+    settCorr,libro,drawData,
+    meta:{classe:'', anno:new Date().getFullYear()}
+  };
+  const json=JSON.stringify(data,null,2);
+  const blob=new Blob([json],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  const d=new Date();
+  const ds=d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
+  a.download='odissea-salvataggio-'+ds+'.json';
+  document.body.appendChild(a);a.click();
+  document.body.removeChild(a);URL.revokeObjectURL(url);
+  msg('Salvataggio scaricato!');
+}
+
+function caricaSessione(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const d=JSON.parse(e.target.result);
+      if(!d.v){msg('File non valido');return;}
+      libro=d.libro||[];
+      drawData=d.drawData||d.dd||{};
+      if(d.ruolo){ruolo=d.ruolo;icona=d.icona||'';nomeRuolo=d.nomeRuolo||'';nomeUtente=d.nomeUtente||'';}
+      if(d.settCorr!==undefined) settCorr=d.settCorr;
+      salva();
+      // aggiorna UI
+      if(ruolo){
+        document.querySelectorAll('.role-card').forEach(c=>c.classList.remove('sel'));
+        document.getElementById('rc-'+ruolo)?.classList.add('sel');
+      }
+      if(nomeUtente){const inp=document.getElementById('inp-nome');if(inp)inp.value=nomeUtente;}
+      document.querySelectorAll('.wc').forEach((c,i)=>c.classList.toggle('sel',i===settCorr));
+      // Se siamo nel lab, aggiorna
+      if(document.getElementById('s-lab').classList.contains('on')){
+        document.getElementById('tb-role').textContent=icona+' '+nomeRuolo+' — '+nomeUtente;
+        document.getElementById('tb-week').textContent='\u2693 '+WEEKS[settCorr].title;
+        costruisciTabs();renderLab(settCorr);
+      }
+      const ts=d.ts?new Date(d.ts).toLocaleDateString('it-IT'):'';
+      msg('Salvataggio caricato'+( ts?' ('+ts+')':'')+'!');
+    }catch(err){msg('Errore nel file: '+err.message);}
+  };
+  reader.readAsText(file);
+  input.value=''; // reset per permettere di ricaricare lo stesso file
+}
+
+
+/* ══ DOWNLOAD FILE ══ */
+function scaricaFile(e){
+  e.preventDefault();
+  // Scarica il file corrente (index.html / la pagina stessa)
+  const url=window.location.href.split('?')[0].split('#')[0];
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='diario-di-bordo-odissea.html';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+}
+
+/* ══ NOTIFICA ══ */
+function msg(t){const n=document.getElementById('notif');n.textContent=t;n.classList.add('on');setTimeout(()=>n.classList.remove('on'),2800);}
+
+/* ══ INIT ══ */
+if(ruolo) document.getElementById('rc-'+ruolo)?.classList.add('sel');
+if(nomeUtente) {const inp=document.getElementById('inp-nome');if(inp)inp.value=nomeUtente;}
+buildWeekGrid();
+</script>
+</body>
+</html>
