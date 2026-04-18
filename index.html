@@ -111,6 +111,109 @@ function scaricaFile(e){
   document.body.appendChild(a);a.click();document.body.removeChild(a);
 }
 
+
+/* ══ SUPABASE — LIBRO CONDIVISO ══ */
+
+// Carica il libro da Supabase all'avvio
+async function caricaLibroDaCloud(){
+  try{
+    const {data,error}=await _sb.from('pagine').select('*').order('created_at',{ascending:true});
+    if(error)throw error;
+    if(!data||!data.length)return;
+    // mappa i record Supabase nel formato interno
+    const cloud=data.map(r=>({
+      id:r.id,
+      weekId:r.week_id,
+      weekTitle:r.week_title,
+      weekSig:r.week_sig,
+      weekC:r.week_color,
+      ruolo:r.ruolo,
+      icona:r.icona,
+      nomeRuolo:r.nome_ruolo,
+      autore:r.autore,
+      testo:r.testo||undefined,
+      disegno:r.disegno||undefined,
+      audioUrl:r.audio_url||undefined,
+      quizQ:r.quiz_q||undefined,
+      quizOpts:r.quiz_opts||undefined,
+      quizC:r.quiz_c||undefined,
+      dom:r.domanda
+    }));
+    // unisci con libro locale (priorità cloud)
+    cloud.forEach(cp=>{
+      const idx=libro.findIndex(p=>p.weekId===cp.weekId&&p.autore===cp.autore&&p.ruolo===cp.ruolo);
+      if(idx>-1)libro[idx]=Object.assign({},libro[idx],cp);
+      else libro.push(cp);
+    });
+    salva();
+    msg('📖 Libro caricato dal cloud!');
+  }catch(e){
+    console.warn('Supabase carica:',e.message);
+  }
+}
+
+// Pubblica un contributo su Supabase
+async function pubblicaSuCloud(dati){
+  try{
+    const w=WEEKS[dati.weekId];
+    const record={
+      week_id:dati.weekId,
+      week_title:dati.weekTitle||w.title,
+      week_sig:dati.weekSig||w.sig,
+      week_color:dati.weekC||w.stampC,
+      ruolo:dati.ruolo,
+      icona:dati.icona,
+      nome_ruolo:dati.nomeRuolo,
+      autore:dati.autore,
+      testo:dati.testo||null,
+      disegno:dati.disegno||null,
+      audio_url:dati.audioUrl||null,
+      quiz_q:dati.quizQ||null,
+      quiz_opts:dati.quizOpts||null,
+      quiz_c:dati.quizC||null,
+      domanda:dati.dom||w.dom,
+      classe:'Prima Media'
+    };
+    // upsert: aggiorna se esiste già, inserisce se no
+    // usa week_id + ruolo + autore come chiave logica
+    const existing=await _sb.from('pagine')
+      .select('id')
+      .eq('week_id',dati.weekId)
+      .eq('ruolo',dati.ruolo)
+      .eq('autore',dati.autore)
+      .single();
+    if(existing.data?.id){
+      await _sb.from('pagine').update(record).eq('id',existing.data.id);
+    } else {
+      await _sb.from('pagine').insert(record);
+    }
+    console.log('Supabase: pubblicato');
+  }catch(e){
+    console.warn('Supabase pubblica:',e.message);
+  }
+}
+
+// Avvia caricamento cloud all'avvio
+window.addEventListener('load',()=>{
+  setTimeout(caricaLibroDaCloud, 800);
+});
+
+
+/* ══ POLLING LIBRO (auto-refresh 30s) ══ */
+let _pollInterval=null;
+function avviaPollingLibro(){
+  fermaPollingLibro();
+  _pollInterval=setInterval(async()=>{
+    if(document.getElementById('s-book')?.classList.contains('on')){
+      await caricaLibroDaCloud();
+      renderLibro();
+    }
+  },30000);
+}
+function fermaPollingLibro(){
+  if(_pollInterval){clearInterval(_pollInterval);_pollInterval=null;}
+}
+
 /* ══ NOTIFICA ══ */
 .notif{position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%) translateY(40px);background:rgba(14,30,10,.97);color:#80d860;border:1px solid rgba(50,140,40,.4);padding:.55rem 1.3rem;font-family:var(--fm);font-size:10px;z-index:9001;opacity:0;transition:all .35s;pointer-events:none;letter-spacing:1px;text-transform:uppercase;border-radius:2px;white-space:nowrap}
 .notif.on{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -513,22 +616,37 @@ audio{width:100%;height:32px;margin-top:.45rem;filter:sepia(.45) brightness(.9)}
 /* modal overlay: non influenzato dal layout pagina */
 .ov{position:fixed}
 
-/* ── HOME BAR ── */
-.home-bar{display:flex;align-items:center;padding:.45rem .85rem;background:rgba(3,5,10,.92);border-bottom:1px solid rgba(180,130,40,.15);flex-shrink:0}
-.home-bar-btn{background:rgba(180,130,40,.1);border:1.5px solid rgba(180,130,40,.4);color:var(--g2);padding:5px 13px;font-family:var(--fm);font-size:10px;letter-spacing:.8px;cursor:pointer;transition:all .2s;text-transform:uppercase;border-radius:3px}
-.home-bar-btn:hover{background:rgba(180,130,40,.22);border-color:var(--g2);color:var(--g3)}
+/* ══ HOME OVERLAY (visibile in tutte le pagine tranne copertina) ══ */
+#home-btn-fixed{
+  position:fixed;top:.55rem;right:.6rem;z-index:500;
+  background:rgba(3,5,10,.82);border:1px solid rgba(180,130,40,.28);
+  color:var(--g2);padding:6px 11px;font-size:14px;
+  cursor:pointer;transition:all .22s;border-radius:3px;
+  display:none;
+}
+#home-btn-fixed:hover{background:rgba(180,130,40,.18);border-color:var(--g2)}
+#home-btn-fixed.visible{display:block}
+
 </style>
+  <!-- Supabase SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const _SB_URL = 'https://wuplkwkbymbzyqukrkpu.supabase.co';
+    const _SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind1cGxrd2tieW1ienlxdWtya3B1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MTM5MjAsImV4cCI6MjA5MjA4OTkyMH0.MkpB2Vu7tU9zoaZr2mkuS_S6C_zKNdcX-0DY1WwzEWo';
+    const _sb = supabase.createClient(_SB_URL, _SB_KEY);
+  </script>
 </head>
 <body>
 
 <div class="progress-wrap"><div class="progress-fill" id="prog" style="width:0%"></div></div>
 
 <!-- ══ S1 COPERTINA ══ -->
+<button id="home-btn-fixed" onclick="vai('s-cover')" title="Torna alla home">🏠</button>
 <div id="s-cover" class="scr on">
   <div class="scr-scroll" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem 1.5rem;gap:1.2rem">
   <div style="width:min(240px,60vw);margin:0 auto">
     <svg width="100%" viewBox="0 0 340 215" role="img">
-      <title>Logo Ardigonauti — nave con vela a forma di A e numero 1</title>
+      <title>Logo Ardigonauti — nave con vela a forma di A</title>
       <style>
         .hu2{fill:#2A1A06;stroke:#C8940A;stroke-width:1.5}
         .ms2{fill:none;stroke:#C8940A;stroke-width:2.5;stroke-linecap:round}
@@ -548,9 +666,6 @@ audio{width:100%;height:32px;margin-top:.45rem;filter:sepia(.45) brightness(.9)}
         @keyframes wshift1{0%,100%{transform:translateX(0)}50%{transform:translateX(-6px)}}
         @keyframes wshift2{0%,100%{transform:translateX(0)}50%{transform:translateX(7px)}}
         @keyframes wshift3{0%,100%{transform:translateX(0)}50%{transform:translateX(-4px)}}
-        /* numero 1 */
-        .num1{font-family:'Palatino Linotype',Palatino,Georgia,serif;
-              font-size:52px;font-weight:700;fill:#B88010;opacity:.55}
       </style>
 
       <!-- scafo -->
@@ -567,8 +682,6 @@ audio{width:100%;height:32px;margin-top:.45rem;filter:sepia(.45) brightness(.9)}
       <path class="wa2" d="M30 190 Q65 182 100 190 Q135 198 170 190 Q205 182 240 190 Q270 196 310 190"/>
       <path class="wa3" d="M20 201 Q60 194 100 201 Q140 208 180 201 Q220 194 260 201 Q290 207 320 201"/>
 
-      <!-- albero -->
-      <line class="ms2" x1="170" y1="157" x2="170" y2="32"/>
       <!-- vela A — gamba sx -->
       <path class="sf2" d="M170 40 L100 148 L122 148 L170 76 Z"/>
       <!-- vela A — gamba dx -->
@@ -583,6 +696,8 @@ audio{width:100%;height:32px;margin-top:.45rem;filter:sepia(.45) brightness(.9)}
       <!-- corde -->
       <line class="rp2" x1="170" y1="40" x2="96" y2="157"/>
       <line class="rp2" x1="170" y1="40" x2="244" y2="157"/>
+      <!-- albero maestro -->
+      <line fill="none" stroke="#C8940A" stroke-width="3" stroke-linecap="round" x1="170" y1="30" x2="170" y2="155"/>
       <!-- bandierina -->
       <polygon class="fl2" points="170,26 187,34 170,42"/>
     </svg>
@@ -599,7 +714,6 @@ audio{width:100%;height:32px;margin-top:.45rem;filter:sepia(.45) brightness(.9)}
 
 <!-- ══ S2 RUOLO ══ -->
 <div id="s-role" class="scr">
-  <div class="home-bar no-print"><button class="home-bar-btn" onclick="vai('s-cover')">🏠 Home</button></div>
   <div class="scr-scroll">
   <div class="step-hdr">
     <div class="step-num">Passo 1 di 3 — Chi sei?</div>
@@ -661,7 +775,6 @@ audio{width:100%;height:32px;margin-top:.45rem;filter:sepia(.45) brightness(.9)}
 <div id="s-guide" class="scr">
   <div class="guide-top">
     <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.6rem">
-      <button class="tb-btn" onclick="vai('s-cover')" style="flex-shrink:0">🏠 Home</button>
       <button class="tb-btn" onclick="vai('s-role')" style="flex-shrink:0">← Indietro</button>
       <div>
         <div class="guide-top-title">📚 Guida al Progetto</div>
@@ -946,13 +1059,13 @@ audio{width:100%;height:32px;margin-top:.45rem;filter:sepia(.45) brightness(.9)}
 
 <!-- ══ S4 LIBRO ══ -->
 <div id="s-book" class="scr">
-  <div class="home-bar no-print"><button class="home-bar-btn" onclick="vai('s-cover')">🏠 Home</button></div>
   <div class="book-cover">
     <span class="book-cover-ship">📖</span>
     <div class="book-cover-title">Il Nostro Libro<br>dell'Odissea</div>
     <div class="book-cover-sub" id="book-anno">Prima Media</div>
     <div class="book-stats" id="book-stats"></div>
     <div class="book-cover-rule"></div>
+    <button class="tb-btn" onclick="caricaLibroDaCloud()" style="margin-top:.4rem;font-size:10px;padding:5px 14px">☁️ Aggiorna dal cloud</button>
   </div>
   <div class="book-pages scr-scroll" id="book-pages">
     <div class="empty-book"><span class="empty-ico">📭</span><div class="empty-txt">Il libro è ancora vuoto.<br>Costruite le prime pagine nel laboratorio!</div></div>
@@ -965,7 +1078,6 @@ audio{width:100%;height:32px;margin-top:.45rem;filter:sepia(.45) brightness(.9)}
 
 <!-- ══ S5 SCHEDE STAMPABILI ══ -->
 <div id="s-print" class="scr">
-  <div class="home-bar no-print"><button class="home-bar-btn" onclick="vai('s-cover')">🏠 Home</button></div>
   <div class="print-intro">
     <div class="print-intro-title">🖨️ Schede Stampabili</div>
     <div class="print-intro-sub">Una scheda per ogni ruolo × ogni settimana</div>
@@ -1139,6 +1251,9 @@ function salva(){try{localStorage.setItem('gjb6',JSON.stringify({libro,dd:drawDa
 /* ══ NAVIGAZIONE ══ */
 const PROG={'s-cover':0,'s-role':15,'s-lab':50,'s-book':90,'s-print':20,'s-guide':10};
 function vai(id){
+  // mostra/nascondi home button fisso
+  const hb=document.getElementById('home-btn-fixed');
+  if(hb) hb.classList.toggle('visible', id!=='s-cover');
   document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
   const el=document.getElementById(id);
   el.classList.add('on');
@@ -1146,7 +1261,8 @@ function vai(id){
   const sc=el.querySelector('.scr-scroll');
   if(sc) sc.scrollTop=0;
   document.getElementById('prog').style.width=(PROG[id]||0)+'%';
-  if(id==='s-book') renderLibro();
+  if(id==='s-book'){renderLibro();avviaPollingLibro();}
+  else fermaPollingLibro();
   if(id==='s-print') renderSchede();
   if(id==='s-role'){buildWeekGrid();if(ruolo)document.getElementById('rc-'+ruolo)?.classList.add('sel');}
 }
@@ -1505,6 +1621,8 @@ function pubblica(wi){
   document.getElementById('ck-testo')?.classList.add('done');
   document.getElementById('ck-pronto')?.classList.add('done');
   msg('⚓ Pubblicato nel libro della classe!');
+  // pubblica anche su Supabase (cloud condiviso)
+  pubblicaSuCloud(dati).catch(e=>console.warn('Cloud sync:',e));
   setTimeout(()=>vai('s-book'),900);
 }
 
