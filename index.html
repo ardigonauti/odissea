@@ -621,16 +621,6 @@ audio{width:100%;height:32px;margin-top:.45rem;filter:sepia(.45) brightness(.9)}
 .ov{position:fixed}
 
 /* ══ HOME OVERLAY (visibile in tutte le pagine tranne copertina) ══ */
-#home-btn-fixed{
-  position:fixed;top:.55rem;right:.6rem;z-index:500;
-  background:rgba(3,5,10,.82);border:1px solid rgba(180,130,40,.28);
-  color:var(--g2);padding:6px 11px;font-size:14px;
-  cursor:pointer;transition:all .22s;border-radius:3px;
-  display:none;
-}
-#home-btn-fixed:hover{background:rgba(180,130,40,.18);border-color:var(--g2)}
-#home-btn-fixed.visible{display:block}
-
 
 
 
@@ -699,7 +689,6 @@ audio{width:100%;height:32px;margin-top:.45rem;filter:sepia(.45) brightness(.9)}
     </div>
   </div>
 </div>
-<button id="home-btn-fixed" onclick="vai('s-cover')" title="Torna alla home">🏠</button>
 <div id="s-cover" class="scr on">
   <div class="scr-scroll" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem 1.5rem;gap:1.2rem">
   <div style="width:min(240px,60vw);margin:0 auto">
@@ -1103,7 +1092,6 @@ audio{width:100%;height:32px;margin-top:.45rem;filter:sepia(.45) brightness(.9)}
       <div class="tb-week" id="tb-week"></div>
     </div>
     <div class="tb-btns">
-      <button class="tb-btn" onclick="vai('s-cover')" title="Torna alla home">🏠</button>
       <button class="tb-btn" onclick="vai('s-role')" title="Cambia ruolo o settimana">← Ruolo</button>
       <button class="tb-btn" onclick="vai('s-book')" title="Vedi il libro della classe">📖 Libro</button>
       <button class="tb-btn tb-save" onclick="salvaSessione()" title="Scarica il file di salvataggio">💾 Salva</button>
@@ -1309,9 +1297,6 @@ function salva(){try{localStorage.setItem('gjb6',JSON.stringify({libro,dd:drawDa
 /* ══ NAVIGAZIONE ══ */
 const PROG={'s-cover':0,'s-role':15,'s-lab':50,'s-book':90,'s-print':20,'s-guide':10};
 function vai(id){
-  // mostra/nascondi home button fisso
-  const hb=document.getElementById('home-btn-fixed');
-  if(hb) hb.classList.toggle('visible', id!=='s-cover');
   document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
   const el=document.getElementById(id);
   el.classList.add('on');
