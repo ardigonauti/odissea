@@ -660,6 +660,12 @@ audio{width:100%;height:32px;margin-top:.45rem;filter:sepia(.45) brightness(.9)}
 #pwd-guest{font-size:11px;color:rgba(180,130,40,.35);cursor:pointer;
   text-decoration:underline;letter-spacing:.5px;font-family:var(--fm)}
 #pwd-guest:hover{color:rgba(180,130,40,.6)}
+.pwd-guest-btn{background:transparent;border:1px solid rgba(180,130,40,.25);
+  color:rgba(180,130,40,.55);padding:.5rem .85rem;font-family:var(--ft);
+  font-size:12px;letter-spacing:.5px;cursor:pointer;border-radius:3px;
+  transition:all .2s}
+.pwd-guest-btn:hover{border-color:var(--g1);color:var(--g2);
+  background:rgba(180,130,40,.08)}
 
 </style>
   <!-- Supabase SDK -->
@@ -677,14 +683,20 @@ audio{width:100%;height:32px;margin-top:.45rem;filter:sepia(.45) brightness(.9)}
 <!-- ══ S1 COPERTINA ══ -->
 <div id="pwd-overlay">
   <div id="pwd-box">
-    <div id="pwd-ico">🔐</div>
+    <div id="pwd-ico">⛵</div>
     <div id="pwd-title">Ardigonauti</div>
-    <div id="pwd-sub">Inserisci il codice<br>che ti ha dato il tuo insegnante</div>
+    <div id="pwd-sub">Sei un membro dell'equipaggio?<br>Inserisci il codice della tua classe</div>
     <input id="pwd-inp" type="password" placeholder="••••••••" maxlength="30"
       autocomplete="off" onkeydown="if(event.key==='Enter')pwdEntra()">
     <div id="pwd-err"></div>
-    <button id="pwd-entra" onclick="pwdEntra()">Entra →</button>
-    <div id="pwd-guest" onclick="pwdOspite()">Sfoglia il libro come ospite</div>
+    <button id="pwd-entra" onclick="pwdEntra()">⚓ Sali a bordo</button>
+
+    <div style="width:100%;height:1px;background:rgba(180,130,40,.12);margin:.3rem 0"></div>
+    <div style="font-size:13px;color:var(--g2);font-family:var(--ft);letter-spacing:2px;text-align:center;margin-bottom:.35rem;font-weight:700">— Modalità ospite —</div>
+    <div style="display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap">
+      <button class="pwd-guest-btn" onclick="pwdOspite('libro')">📖 Sfoglia il Diario</button>
+      <button class="pwd-guest-btn" onclick="pwdOspite('guida')">📚 Guida al progetto</button>
+    </div>
   </div>
 </div>
 <button id="home-btn-fixed" onclick="vai('s-cover')" title="Torna alla home">🏠</button>
@@ -1974,8 +1986,13 @@ buildWeekGrid();
       document.getElementById('pwd-inp').focus();
     }
   };
-  window.pwdOspite=function(){
+  window.pwdOspite=function(dest){
     document.getElementById('pwd-overlay').classList.add('off');
+    // va direttamente a libro o guida, salta la copertina
+    setTimeout(function(){
+      if(dest==='libro') vai('s-book');
+      else if(dest==='guida') vai('s-guide');
+    }, 100);
   };
   window.pwdCheck=function(){
     if(!ok){
