@@ -221,42 +221,48 @@ let _autorizzato = false;
 let _soloLettura = false;
 
 function initCodice(){
-  const modal=document.getElementById('codice-modal');
-  if(!modal)return;
-  if(sessionStorage.getItem('ard_ok')==='1'){
-    _autorizzato=true;
-    modal.classList.add('hidden');
-    return;
-  }
-  modal.classList.remove('hidden');
-  setTimeout(()=>{
-    const inp=document.getElementById('codice-inp');
-    if(inp)inp.focus();
-  },200);
+  try{
+    const modal=document.getElementById('codice-modal');
+    if(!modal)return;
+    if(sessionStorage.getItem('ard_ok')==='1'){
+      _autorizzato=true;
+      modal.classList.add('hidden');
+      return;
+    }
+    modal.classList.remove('hidden');
+    setTimeout(()=>{
+      const inp=document.getElementById('codice-inp');
+      if(inp)inp.focus();
+    },300);
+  }catch(e){console.warn('initCodice:',e);}
 }
 
 function verificaCodice(){
-  const inp=document.getElementById('codice-inp');
-  const val=(inp?inp.value:'').trim();
-  const modal=document.getElementById('codice-modal');
-  const err=document.getElementById('codice-err');
-  if(val===_CODICE){
-    _autorizzato=true;
-    sessionStorage.setItem('ard_ok','1');
-    if(modal)modal.classList.add('hidden');
-    if(err)err.textContent='';
-    msg('Benvenuto a bordo! ⚓');
-  }else{
-    if(err)err.textContent='Codice non corretto — riprova';
-    if(inp){inp.value='';inp.focus();}
-  }
+  try{
+    const inp=document.getElementById('codice-inp');
+    const val=(inp?inp.value:'').trim();
+    const modal=document.getElementById('codice-modal');
+    const err=document.getElementById('codice-err');
+    if(val===_CODICE){
+      _autorizzato=true;
+      sessionStorage.setItem('ard_ok','1');
+      if(modal)modal.classList.add('hidden');
+      if(err)err.textContent='';
+      msg('Benvenuto a bordo! ⚓');
+    }else{
+      if(err)err.textContent='Codice non corretto — riprova';
+      if(inp){inp.value='';inp.focus();}
+    }
+  }catch(e){console.warn('verificaCodice:',e);}
 }
 
 function soloLettura(){
-  _soloLettura=true;
-  _autorizzato=false;
-  const modal=document.getElementById('codice-modal');
-  if(modal)modal.classList.add('hidden');
+  try{
+    _soloLettura=true;
+    _autorizzato=false;
+    const modal=document.getElementById('codice-modal');
+    if(modal)modal.classList.add('hidden');
+  }catch(e){console.warn('soloLettura:',e);}
 }
 
 // blocca pubblica() se non autorizzato
@@ -720,7 +726,7 @@ audio{width:100%;height:32px;margin-top:.45rem;filter:sepia(.45) brightness(.9)}
 <!-- ══ S1 COPERTINA ══ -->
 <button id="home-btn-fixed" onclick="vai('s-cover')" title="Torna alla home">🏠</button>
 <!-- ══ MODAL CODICE CLASSE ══ -->
-<div id="codice-modal">
+<div id="codice-modal" class="hidden">
   <div style="font-size:44px">🔐</div>
   <div class="codice-title">Codice della classe</div>
   <div class="codice-sub">Inserisci il codice che ti ha dato il tuo insegnante</div>
