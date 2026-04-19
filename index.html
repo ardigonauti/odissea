@@ -214,6 +214,53 @@ function fermaPollingLibro(){
   if(_pollInterval){clearInterval(_pollInterval);_pollInterval=null;}
 }
 
+
+/* ══ CODICE CLASSE ══ */
+const _CODICE = 'ardigonauti2025';
+let _autorizzato = false;
+let _soloLettura = false;
+
+function initCodice(){
+  // controlla se già autorizzato in questa sessione
+  if(sessionStorage.getItem('ard_ok')==='1'){
+    _autorizzato=true;
+    document.getElementById('codice-modal').classList.add('hidden');
+    return;
+  }
+  // mostra modal
+  document.getElementById('codice-modal').classList.remove('hidden');
+}
+
+function verificaCodice(){
+  const val=document.getElementById('codice-inp').value.trim();
+  if(val===_CODICE){
+    _autorizzato=true;
+    sessionStorage.setItem('ard_ok','1');
+    document.getElementById('codice-modal').classList.add('hidden');
+    document.getElementById('codice-err').textContent='';
+    msg('Benvenuto a bordo!');
+  }else{
+    document.getElementById('codice-err').textContent='Codice non corretto — riprova';
+    document.getElementById('codice-inp').value='';
+    document.getElementById('codice-inp').focus();
+  }
+}
+
+function soloLettura(){
+  _soloLettura=true;
+  document.getElementById('codice-modal').classList.add('hidden');
+}
+
+// blocca pubblica() se non autorizzato
+function checkAutorizzato(){
+  if(!_autorizzato){
+    msg('Inserisci il codice classe per pubblicare!');
+    document.getElementById('codice-modal').classList.remove('hidden');
+    return false;
+  }
+  return true;
+}
+
 /* ══ NOTIFICA ══ */
 .notif{position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%) translateY(40px);background:rgba(14,30,10,.97);color:#80d860;border:1px solid rgba(50,140,40,.4);padding:.55rem 1.3rem;font-family:var(--fm);font-size:10px;z-index:9001;opacity:0;transition:all .35s;pointer-events:none;letter-spacing:1px;text-transform:uppercase;border-radius:2px;white-space:nowrap}
 .notif.on{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -627,6 +674,28 @@ audio{width:100%;height:32px;margin-top:.45rem;filter:sepia(.45) brightness(.9)}
 #home-btn-fixed:hover{background:rgba(180,130,40,.18);border-color:var(--g2)}
 #home-btn-fixed.visible{display:block}
 
+
+/* ══ MODAL CODICE CLASSE ══ */
+#codice-modal{
+  position:fixed;inset:0;z-index:9000;
+  background:rgba(3,5,10,.97);
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:1.1rem;padding:2rem;
+}
+#codice-modal.hidden{display:none}
+.codice-title{font-family:var(--ft);font-size:22px;color:var(--g2);
+  letter-spacing:2px;text-align:center}
+.codice-sub{font-size:13px;color:var(--d1);font-style:italic;text-align:center;
+  font-family:var(--fb);max-width:280px;line-height:1.6}
+.codice-inp{background:rgba(6,10,20,.8);border:1.5px solid rgba(180,130,40,.3);
+  border-radius:4px;color:var(--p1);padding:.75rem 1rem;
+  font-family:var(--fm);font-size:16px;text-align:center;
+  outline:none;width:min(260px,80vw);letter-spacing:3px;transition:border-color .2s}
+.codice-inp:focus{border-color:var(--g1)}
+.codice-err{font-family:var(--fm);font-size:10px;color:#c04030;
+  letter-spacing:1px;text-transform:uppercase;min-height:16px;text-align:center}
+
 </style>
   <!-- Supabase SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -642,6 +711,25 @@ audio{width:100%;height:32px;margin-top:.45rem;filter:sepia(.45) brightness(.9)}
 
 <!-- ══ S1 COPERTINA ══ -->
 <button id="home-btn-fixed" onclick="vai('s-cover')" title="Torna alla home">🏠</button>
+<!-- ══ MODAL CODICE CLASSE ══ -->
+<div id="codice-modal">
+  <div style="font-size:44px">🔐</div>
+  <div class="codice-title">Codice della classe</div>
+  <div class="codice-sub">Inserisci il codice che ti ha dato il tuo insegnante</div>
+  <input class="codice-inp" id="codice-inp" type="password"
+    placeholder="••••••••••••••"
+    maxlength="30"
+    onkeydown="if(event.key==='Enter')verificaCodice()"
+    autocomplete="off">
+  <div class="codice-err" id="codice-err"></div>
+  <button class="big-btn" onclick="verificaCodice()">Entra →</button>
+  <div style="font-size:11px;color:rgba(180,130,40,.22);font-family:var(--fm);
+    letter-spacing:1px;margin-top:.5rem">Puoi sfogliare il libro senza codice →
+    <span style="cursor:pointer;text-decoration:underline;color:rgba(180,130,40,.4)"
+      onclick="soloLettura()">Entra come ospite</span>
+  </div>
+</div>
+
 <div id="s-cover" class="scr on">
   <div class="scr-scroll" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem 1.5rem;gap:1.2rem">
   <div style="width:min(240px,60vw);margin:0 auto">
@@ -1285,7 +1373,7 @@ function sceglRuolo(r,ico,nome){
   document.querySelectorAll('.rc').forEach(c=>c.classList.remove('sel'));
   document.getElementById('rc-'+r).classList.add('sel');
 }
-function avviaLab(){
+function avviaLab(){if(!checkAutorizzato())return;
   const n=document.getElementById('inp-nome')?.value?.trim();
   if(!ruolo){msg('Scegli prima il tuo ruolo!');return;}
   if(!n){msg('Scrivi il tuo nome a bordo!');return;}
@@ -1603,7 +1691,7 @@ async function toggleRec(wi){
 function fermaRec(){if(mediaRec&&mediaRec.state!=='inactive')mediaRec.stop();recAttivo=false;clearInterval(recInt);const rt=document.getElementById('rt');if(rt)rt.textContent='';}
 
 /* ══ PUBBLICA ══ */
-function pubblica(wi){
+function pubblica(wi){if(!checkAutorizzato())return;
   const w=WEEKS[wi];
   const dati={id:Date.now(),weekId:wi,weekTitle:w.title,weekDay:w.day,weekSig:w.sig,weekC:w.stampC,weekDot:w.dot,ruolo,icona,nomeRuolo,autore:nomeUtente,dom:w.dom};
   if(ruolo==='scriba'){const t=document.getElementById('pi-s-'+wi)?.value?.trim();if(!t||t.length<10){msg('Scrivi almeno qualche riga prima di pubblicare!');return;}dati.testo=t;}
