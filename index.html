@@ -216,39 +216,47 @@ function fermaPollingLibro(){
 
 
 /* ══ CODICE CLASSE ══ */
-const _CODICE = 'ardigonauti2025';
+const _CODICE = 'ardigonauti2026';
 let _autorizzato = false;
 let _soloLettura = false;
 
 function initCodice(){
-  // controlla se già autorizzato in questa sessione
+  const modal=document.getElementById('codice-modal');
+  if(!modal)return;
   if(sessionStorage.getItem('ard_ok')==='1'){
     _autorizzato=true;
-    document.getElementById('codice-modal').classList.add('hidden');
+    modal.classList.add('hidden');
     return;
   }
-  // mostra modal
-  document.getElementById('codice-modal').classList.remove('hidden');
+  modal.classList.remove('hidden');
+  setTimeout(()=>{
+    const inp=document.getElementById('codice-inp');
+    if(inp)inp.focus();
+  },200);
 }
 
 function verificaCodice(){
-  const val=document.getElementById('codice-inp').value.trim();
+  const inp=document.getElementById('codice-inp');
+  const val=(inp?inp.value:'').trim();
+  const modal=document.getElementById('codice-modal');
+  const err=document.getElementById('codice-err');
   if(val===_CODICE){
     _autorizzato=true;
     sessionStorage.setItem('ard_ok','1');
-    document.getElementById('codice-modal').classList.add('hidden');
-    document.getElementById('codice-err').textContent='';
-    msg('Benvenuto a bordo!');
+    if(modal)modal.classList.add('hidden');
+    if(err)err.textContent='';
+    msg('Benvenuto a bordo! ⚓');
   }else{
-    document.getElementById('codice-err').textContent='Codice non corretto — riprova';
-    document.getElementById('codice-inp').value='';
-    document.getElementById('codice-inp').focus();
+    if(err)err.textContent='Codice non corretto — riprova';
+    if(inp){inp.value='';inp.focus();}
   }
 }
 
 function soloLettura(){
   _soloLettura=true;
-  document.getElementById('codice-modal').classList.add('hidden');
+  _autorizzato=false;
+  const modal=document.getElementById('codice-modal');
+  if(modal)modal.classList.add('hidden');
 }
 
 // blocca pubblica() se non autorizzato
@@ -1999,6 +2007,7 @@ function mfNav(dir){mfGoTo(mfIdx+dir);}
 if(ruolo) document.getElementById('rc-'+ruolo)?.classList.add('sel');
 if(nomeUtente) {const inp=document.getElementById('inp-nome');if(inp)inp.value=nomeUtente;}
 buildWeekGrid();
+initCodice();
 </script>
 </body>
 </html>
