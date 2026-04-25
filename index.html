@@ -371,6 +371,10 @@ textarea.pi{min-height:80px;overflow:hidden}
 
 /* ── AUDIO ── */
 .audio-area{text-align:center;padding:.75rem .5rem;background:rgba(110,70,20,.03);border-radius:3px}
+.audio-tab{background:transparent;border:1.5px solid rgba(180,130,40,.25);color:rgba(40,24,8,.45);
+  padding:.4rem .9rem;font-family:var(--fm);font-size:11px;letter-spacing:.5px;cursor:pointer;
+  border-radius:3px;transition:all .2s}
+.audio-tab.sel{background:rgba(180,130,40,.15);border-color:var(--g1);color:var(--g2)}
 .rec-ring{width:60px;height:60px;border-radius:50%;border:2px solid rgba(140,30,20,.4);background:rgba(140,30,20,.07);display:inline-flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;transition:all .3s;margin:.35rem}
 .rec-ring.rec{border-color:#c02010;background:rgba(192,32,16,.16);animation:rp 1s ease-in-out infinite}
 @keyframes rp{0%,100%{box-shadow:0 0 0 0 rgba(192,32,16,.3)}70%{box-shadow:0 0 0 12px rgba(192,32,16,0)}}
@@ -630,6 +634,24 @@ audio{width:100%;height:32px;margin-top:.45rem;filter:sepia(.45) brightness(.9)}
 .pwd-guest-btn:hover{border-color:var(--g1);color:var(--g2);
   background:rgba(180,130,40,.08)}
 
+
+/* ══ TRAILER MODAL ══ */
+#trailer-modal{position:fixed;inset:0;z-index:9998;background:rgba(3,5,10,.96);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:1.2rem;padding:1.5rem}
+#trailer-modal.off{display:none}
+#trailer-wrap{position:relative;width:100%;max-width:700px;aspect-ratio:16/9;
+  border:1.5px solid rgba(180,130,40,.3);border-radius:6px;overflow:hidden;
+  box-shadow:0 0 40px rgba(180,130,40,.12)}
+#trailer-wrap iframe{position:absolute;inset:0;width:100%;height:100%;border:none}
+#trailer-skip{background:transparent;border:1.5px solid rgba(180,130,40,.35);
+  color:rgba(180,130,40,.7);padding:.55rem 1.4rem;font-family:var(--fm);
+  font-size:11px;letter-spacing:1.5px;cursor:pointer;border-radius:3px;
+  transition:all .2s;text-transform:uppercase}
+#trailer-skip:hover{border-color:var(--g2);color:var(--g2);background:rgba(180,130,40,.08)}
+#trailer-sub{font-family:var(--fb);font-size:12px;color:rgba(180,130,40,.4);
+  letter-spacing:1px;text-align:center}
+
 </style>
   
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -642,6 +664,19 @@ audio{width:100%;height:32px;margin-top:.45rem;filter:sepia(.45) brightness(.9)}
 <body>
 
 <div class="progress-wrap"><div class="progress-fill" id="prog" style="width:0%"></div></div>
+
+<!-- ══ TRAILER MODAL ══ -->
+<div id="trailer-modal" class="off">
+  <div id="trailer-sub">IL NOSTRO DIARIO DI BORDO · ODISSEA</div>
+  <div id="trailer-wrap">
+    <iframe id="trailer-yt"
+      src="https://www.youtube.com/embed/X5rQFIi99fQ?autoplay=1&mute=0&rel=0&modestbranding=1&playsinline=1"
+      allow="autoplay; encrypted-media; fullscreen"
+      allowfullscreen>
+    </iframe>
+  </div>
+  <button id="trailer-skip" onclick="saltaTrailer()">✕ &nbsp;Salta il trailer</button>
+</div>
 
 <div id="pwd-overlay">
   <div id="pwd-box">
@@ -770,8 +805,8 @@ audio{width:100%;height:32px;margin-top:.45rem;filter:sepia(.45) brightness(.9)}
       </div>
     </div>
 
-    <label class="f-label">Passo 2 — Il tuo nome a bordo</label>
-    <input class="f-inp" id="inp-nome" placeholder="Es: Marco delle Tempeste, La Navigatrice, Il Timoniere…" maxlength="30">
+    <label class="f-label">Passo 2 — Il tuo epiteto a bordo</label>
+    <input class="f-inp" id="inp-nome" placeholder="Es: il curioso, dalla voce potente, dai mille ingegni…" maxlength="40">
 
     <label class="f-label" style="margin-bottom:.45rem">Passo 3 — Scegli la settimana</label>
     <div class="week-grid" id="week-grid"></div>
@@ -1252,6 +1287,19 @@ function salva(){try{localStorage.setItem('gjb6',JSON.stringify({libro,dd:drawDa
 /* ══ NAVIGAZIONE ══ */
 const PROG={'s-cover':0,'s-role':15,'s-lab':50,'s-book':90,'s-guide':10};
 function vai(id){
+  // Se si esce dal lab senza aver pubblicato, chiedi conferma
+  const currScr = document.querySelector('.scr.on');
+  const currId = currScr ? currScr.id : '';
+  if(currId === 's-lab' && id !== 's-lab'){
+    const hasTesto = document.querySelector('#lab-body textarea')?.value?.trim();
+    const hasCanvas = window._canvasModified;
+    const hasAudio = window._audioBlob;
+    if(hasTesto || hasCanvas || hasAudio){
+      if(!confirm('Hai del lavoro non pubblicato. Se esci ora andrà perso.\n\nVuoi davvero uscire?')){
+        return;
+      }
+    }
+  }
   document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
   const el=document.getElementById(id);
   el.classList.add('on');
@@ -1285,7 +1333,7 @@ function sceglRuolo(r,ico,nome){
 function avviaLab(){if(!pwdCheck())return;
   const n=document.getElementById('inp-nome')?.value?.trim();
   if(!ruolo){msg('Scegli prima il tuo ruolo!');return;}
-  if(!n){msg('Scrivi il tuo nome a bordo!');return;}
+  if(!n){msg('Scrivi il tuo epiteto a bordo!');return;}
   nomeUtente=n;salva();
   document.getElementById('tb-role').textContent=icona+' '+nomeRuolo+' — '+nomeUtente;
   document.getElementById('tb-week').textContent='⚓ '+WEEKS[settCorr].title;
@@ -1473,13 +1521,56 @@ function buildRoleBody(wi,body){
   }
   else if(ruolo==='aedo'){
     const az=mk('div','audio-area');
-    const rs=mk('div','rec-stat');rs.id='rs';rs.textContent='Premi il pulsante rosso per iniziare';az.appendChild(rs);
-    const rr=mk('div','rec-ring');rr.id='rr';rr.textContent='🎙';rr.onclick=()=>toggleRec(wi);az.appendChild(rr);
-    const rt=mk('div','rec-t');rt.id='rt';az.appendChild(rt);
-    const rp=mk('div');rp.id='rp';az.appendChild(rp);
+
+    // ── Tab switcher: Registra / Carica ──
+    const tabs=mk('div');
+    tabs.style.cssText='display:flex;gap:.4rem;justify-content:center;margin-bottom:.75rem';
+    const tabRec=mk('button','audio-tab sel');tabRec.id='tab-rec';tabRec.textContent='🎙 Registra';
+    const tabUp=mk('button','audio-tab');tabUp.id='tab-up';tabUp.textContent='📁 Carica file audio';
+    tabs.appendChild(tabRec);tabs.appendChild(tabUp);az.appendChild(tabs);
+
+    // ── Pannello registrazione ──
+    const panRec=mk('div');panRec.id='pan-rec';
+    const rs=mk('div','rec-stat');rs.id='rs';rs.textContent='Premi il pulsante rosso per iniziare';panRec.appendChild(rs);
+    const rr=mk('div','rec-ring');rr.id='rr';rr.textContent='🎙';rr.onclick=()=>toggleRec(wi);panRec.appendChild(rr);
+    const rt=mk('div','rec-t');rt.id='rt';panRec.appendChild(rt);
+    const rp=mk('div');rp.id='rp';panRec.appendChild(rp);
     const hint=mk('div');hint.style.cssText='font-size:12px;color:rgba(40,24,8,.42);font-style:italic;margin-top:.4rem;line-height:1.6;max-width:300px;margin-left:auto;margin-right:auto';
     hint.textContent='Racconta come un antico cantastorie greco — voce chiara e lenta';
-    az.appendChild(hint);body.appendChild(az);
+    panRec.appendChild(hint);az.appendChild(panRec);
+
+    // ── Pannello upload ──
+    const panUp=mk('div');panUp.id='pan-up';panUp.style.display='none';
+    const upLabel=mk('label');
+    upLabel.style.cssText='display:flex;flex-direction:column;align-items:center;gap:.6rem;cursor:pointer;padding:1.2rem;border:2px dashed rgba(180,130,40,.3);border-radius:6px;transition:border-color .2s';
+    upLabel.innerHTML='<span style="font-size:32px">📁</span><span style="font-size:13px;color:var(--d1)">Tocca per scegliere un file audio</span><span style="font-size:11px;color:rgba(40,24,8,.35)">(mp3, m4a, wav, ogg — max 10 MB)</span>';
+    const upInp=mk('input');upInp.type='file';upInp.accept='audio/*';upInp.style.display='none';
+    upInp.onchange=function(){
+      const file=this.files[0];
+      if(!file)return;
+      if(file.size>10*1024*1024){msg('File troppo grande — max 10 MB');return;}
+      const url=URL.createObjectURL(file);
+      window._audioBlob=file;window._audioUrl=url;
+      let prev=document.getElementById('up-preview');
+      if(!prev){prev=document.createElement('audio');prev.id='up-preview';prev.controls=true;prev.style.cssText='width:100%;margin-top:.6rem';panUp.appendChild(prev);}
+      prev.src=url;
+      upLabel.style.borderColor='rgba(180,130,40,.7)';
+      upLabel.querySelector('span:nth-child(2)').textContent='✓ '+file.name;
+      msg('Audio caricato — pronto per la pubblicazione!');
+    };
+    upLabel.appendChild(upInp);panUp.appendChild(upLabel);az.appendChild(panUp);
+
+    // ── Switch tab logic ──
+    tabRec.onclick=function(){
+      tabRec.classList.add('sel');tabUp.classList.remove('sel');
+      panRec.style.display='';panUp.style.display='none';
+    };
+    tabUp.onclick=function(){
+      tabUp.classList.add('sel');tabRec.classList.remove('sel');
+      panUp.style.display='';panRec.style.display='none';
+    };
+
+    body.appendChild(az);
   }
   else if(ruolo==='cartografo'){
     const saved2=libro.find(p=>p.weekId===wi&&p.autore===nomeUtente&&p.ruolo==='cartografo');
@@ -1821,6 +1912,20 @@ if(ruolo) document.getElementById('rc-'+ruolo)?.classList.add('sel');
 if(nomeUtente) {const inp=document.getElementById('inp-nome');if(inp)inp.value=nomeUtente;}
 buildWeekGrid();
 
+
+/* ══ TRAILER ══ */
+function mostraTrailer(){
+  const modal=document.getElementById('trailer-modal');
+  if(modal) modal.classList.remove('off');
+}
+function saltaTrailer(){
+  const modal=document.getElementById('trailer-modal');
+  if(modal) modal.classList.add('off');
+  // ferma il video
+  const iframe=document.getElementById('trailer-yt');
+  if(iframe) iframe.src='about:blank';
+}
+
 /* ══ PASSWORD ══ */
 (function(){
   var C='ardigonauti2026';
@@ -1863,6 +1968,11 @@ buildWeekGrid();
     if(i&&!document.getElementById('pwd-overlay').classList.contains('off'))i.focus();
   },200);
 })();
+
+// mostra trailer all'apertura
+window.addEventListener("load", function(){
+  mostraTrailer();
+});
 
 </script>
 </body>
