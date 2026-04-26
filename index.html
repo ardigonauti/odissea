@@ -652,6 +652,68 @@ audio{width:100%;height:32px;margin-top:.45rem;filter:sepia(.45) brightness(.9)}
 #trailer-sub{font-family:var(--fb);font-size:12px;color:rgba(180,130,40,.4);
   letter-spacing:1px;text-align:center}
 
+
+/* ══ RESPONSIVE ══ */
+
+/* Tablet e mobile (< 640px) */
+@media (max-width: 640px){
+  /* Copertina */
+  .cv-logo svg{width:140px;height:140px}
+  .cv-title{font-size:clamp(22px,6vw,36px)}
+  .cv-sub{font-size:13px}
+  .cv-proemio{font-size:13px;max-width:100%}
+  .big-btn{font-size:13px;padding:.75rem 1.6rem}
+
+  /* Topbar lab */
+  .topbar{padding:.3rem .5rem;gap:.3rem}
+  .tb-btn{font-size:9px;padding:5px 7px;letter-spacing:.3px}
+  .tb-info{display:none}
+
+  /* Lab pergamena */
+  .lab-body{padding:.5rem}
+  .torn-t,.torn-b{height:18px}
+
+  /* Ruoli */
+  .rc-grid{grid-template-columns:1fr 1fr}
+  .rc{padding:.6rem .5rem}
+  .rc-name{font-size:13px}
+
+  /* Guida */
+  .guide-tabs{gap:.2rem}
+  .guide-tab{font-size:11px;padding:.4rem .6rem}
+  .guide-body{padding:.6rem}
+
+  /* Libro */
+  .bc-grid{grid-template-columns:1fr}
+  .book-cover{padding:1rem}
+
+  /* Password overlay */
+  #pwd-box{padding:1.4rem 1rem}
+  #pwd-title{font-size:17px}
+
+  /* Trailer */
+  #trailer-modal{padding:.75rem}
+  #trailer-sub{font-size:10px}
+}
+
+/* Mobile piccolo (< 390px) */
+@media (max-width: 390px){
+  .cv-title{font-size:20px}
+  .tb-btn{font-size:8px;padding:4px 6px}
+  .rc-grid{grid-template-columns:1fr 1fr;gap:.4rem}
+  .step-title{font-size:18px}
+  .step-sub{font-size:12px}
+}
+
+/* Desktop largo (> 900px) */
+@media (min-width: 900px){
+  .cv-logo svg{width:220px;height:220px}
+  .cv-title{font-size:52px}
+  .lab-body{padding:1.2rem 2rem}
+  .guide-body{padding:1.4rem 2rem}
+  #pwd-box{max-width:380px}
+}
+
 </style>
   
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1106,6 +1168,7 @@ audio{width:100%;height:32px;margin-top:.45rem;filter:sepia(.45) brightness(.9)}
 
 <div id="s-book" class="scr">
   <div class="book-cover">
+    <button onclick="vai('s-cover')" style="position:absolute;top:.75rem;left:.75rem;background:transparent;border:none;color:rgba(180,130,40,.5);font-family:var(--fm);font-size:11px;letter-spacing:1px;cursor:pointer;padding:.3rem .6rem;z-index:2">← Home</button>
     <span class="book-cover-ship">📖</span>
     <div class="book-cover-title">Il Nostro Libro<br>dell'Odissea</div>
     <div class="book-cover-sub" id="book-anno">Prima Media</div>
